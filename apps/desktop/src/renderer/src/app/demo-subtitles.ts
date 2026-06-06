@@ -1,11 +1,11 @@
 export interface DemoSubtitle {
-  id: string;
-  sourceText: string;
-  translatedText: string;
-  state: "live" | "revisable" | "locked";
+  readonly id: string;
+  readonly sourceText: string;
+  readonly translatedText: string;
+  readonly state: "live" | "revisable" | "locked";
 }
 
-export const demoSubtitles: DemoSubtitle[] = [
+export const demoSubtitles: ReadonlyArray<DemoSubtitle> = [
   {
     id: "demo-001",
     sourceText:

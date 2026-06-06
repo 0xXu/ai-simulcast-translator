@@ -1,5 +1,4 @@
 import { demoSubtitles } from "./demo-subtitles";
-// @ts-expect-error Vite handles CSS side-effect imports at bundle time.
 import "./styles.css";
 
 export type WindowKind = "control" | "overlay";
@@ -63,9 +62,17 @@ function OverlayWindow() {
   return (
     <main className="overlay-shell">
       <div className="overlay-label">字幕演示</div>
-      <section className={`subtitle-card state-${subtitle.state}`}>
-        <p className="translation">{subtitle.translatedText}</p>
-        <p className="source">{subtitle.sourceText}</p>
+      <section
+        className={`subtitle-card state-${subtitle.state}`}
+        role="status"
+        aria-live="polite"
+      >
+        <p className="translation" lang="zh-CN">
+          {subtitle.translatedText}
+        </p>
+        <p className="source" lang="en">
+          {subtitle.sourceText}
+        </p>
       </section>
     </main>
   );

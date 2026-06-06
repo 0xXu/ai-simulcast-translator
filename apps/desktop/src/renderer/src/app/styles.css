@@ -1,6 +1,5 @@
 :root {
   color: #172033;
-  background: #f4f7fb;
   font-family:
     Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -16,6 +15,7 @@ body,
 #root {
   min-height: 100%;
   margin: 0;
+  background: transparent;
 }
 
 button,
