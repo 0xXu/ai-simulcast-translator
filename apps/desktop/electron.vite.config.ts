@@ -3,10 +3,18 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ["@simulcast/contracts"],
+      }),
+    ],
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [
+      externalizeDepsPlugin({
+        exclude: ["@simulcast/contracts"],
+      }),
+    ],
     build: {
       rollupOptions: {
         output: {
