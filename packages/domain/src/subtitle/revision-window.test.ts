@@ -16,7 +16,7 @@ describe("RevisionWindow", () => {
         createSegment("seg-001", 1, "Hello", now, now + 1000),
         createSegment("seg-002", 2, "World", now + 1000, now + 2000),
       ];
-      const segment = segments[0];
+      const segment = segments[0]!;
 
       expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 5000)).toBe(false);
     });
@@ -26,7 +26,7 @@ describe("RevisionWindow", () => {
       const segments = Array.from({ length: 6 }, (_, i) =>
         createSegment(`seg-${i}`, i + 1, `Text ${i}`, now + i * 1000, now + (i + 1) * 1000)
       );
-      const oldestSegment = segments[0];
+      const oldestSegment = segments[0]!;
 
       // 在最新 5 个句子之外，应该锁定（不受时间窗口影响）
       expect(shouldLockSegment(oldestSegment, segments, DEFAULT_REVISION_WINDOW, now + 3000)).toBe(true);
@@ -37,7 +37,7 @@ describe("RevisionWindow", () => {
       const segments = [
         createSegment("seg-001", 1, "Hello", now, now + 1000),
       ];
-      const segment = segments[0];
+      const segment = segments[0]!;
 
       // 距离结束时间超过 20 秒
       expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 25_000)).toBe(true);
@@ -48,7 +48,7 @@ describe("RevisionWindow", () => {
       const segments = [
         createSegment("seg-001", 1, "Hello", now, now + 1000),
       ];
-      const segment = segments[0];
+      const segment = segments[0]!;
 
       // 距离结束时间在 20 秒内
       expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 10_000)).toBe(false);
@@ -59,7 +59,7 @@ describe("RevisionWindow", () => {
       const segments = [
         updateState(createSegment("seg-001", 1, "Hello", now, now + 1000), "locked"),
       ];
-      const segment = segments[0];
+      const segment = segments[0]!;
 
       // 已锁定的片段返回 false（不关心时间窗口）
       expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 100_000)).toBe(false);
@@ -85,7 +85,7 @@ describe("RevisionWindow", () => {
 
       const toLock = calculateSegmentsToLock(segments, DEFAULT_REVISION_WINDOW, now + 3000);
       expect(toLock.length).toBe(1);
-      expect(toLock[0].id).toBe("seg-0");
+      expect(toLock[0]!.id).toBe("seg-0");
     });
   });
 });
