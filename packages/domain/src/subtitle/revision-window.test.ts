@@ -11,72 +11,79 @@ import {
 describe("RevisionWindow", () => {
   describe("shouldLockSegment", () => {
     it("returns false for live segments within window", () => {
+      const now = Date.now();
       const segments = [
-        createSegment("seg-001", 1, "Hello", 0, 1000),
-        createSegment("seg-002", 2, "World", 1000, 2000),
+        createSegment("seg-001", 1, "Hello", now, now + 1000),
+        createSegment("seg-002", 2, "World", now + 1000, now + 2000),
       ];
       const segment = segments[0];
 
-      expect(shouldLockSegment(segment, segments)).toBe(false);
+      expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 5000)).toBe(false);
     });
 
     it("returns true for segments beyond max sentences", () => {
+      const now = Date.now();
       const segments = Array.from({ length: 6 }, (_, i) =>
-        createSegment(`seg-${i}`, i + 1, `Text ${i}`, i * 1000, (i + 1) * 1000)
+        createSegment(`seg-${i}`, i + 1, `Text ${i}`, now + i * 1000, now + (i + 1) * 1000)
       );
       const oldestSegment = segments[0];
 
-      expect(shouldLockSegment(oldestSegment, segments)).toBe(true);
+      // 在最新 5 个句子之外，应该锁定（不受时间窗口影响）
+      expect(shouldLockSegment(oldestSegment, segments, DEFAULT_REVISION_WINDOW, now + 3000)).toBe(true);
     });
 
     it("returns true for segments beyond max time", () => {
-      const currentTime = Date.now();
+      const now = Date.now();
       const segments = [
-        createSegment("seg-001", 1, "Hello", 0, 1000),
+        createSegment("seg-001", 1, "Hello", now, now + 1000),
       ];
       const segment = segments[0];
 
       // 距离结束时间超过 20 秒
-      expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, currentTime + 25_000)).toBe(true);
+      expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 25_000)).toBe(true);
     });
 
     it("returns false for segments within time window", () => {
-      const currentTime = Date.now();
+      const now = Date.now();
       const segments = [
-        createSegment("seg-001", 1, "Hello", 0, 1000),
+        createSegment("seg-001", 1, "Hello", now, now + 1000),
       ];
       const segment = segments[0];
 
       // 距离结束时间在 20 秒内
-      expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, currentTime + 10_000)).toBe(false);
+      expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 10_000)).toBe(false);
     });
 
     it("returns false for already locked segments", () => {
+      const now = Date.now();
       const segments = [
-        updateState(createSegment("seg-001", 1, "Hello", 0, 1000), "locked"),
+        updateState(createSegment("seg-001", 1, "Hello", now, now + 1000), "locked"),
       ];
       const segment = segments[0];
 
-      expect(shouldLockSegment(segment, segments)).toBe(false);
+      // 已锁定的片段返回 false（不关心时间窗口）
+      expect(shouldLockSegment(segment, segments, DEFAULT_REVISION_WINDOW, now + 100_000)).toBe(false);
     });
   });
 
   describe("calculateSegmentsToLock", () => {
     it("returns empty array when no segments should be locked", () => {
+      const now = Date.now();
       const segments = [
-        createSegment("seg-001", 1, "Hello", 0, 1000),
-        createSegment("seg-002", 2, "World", 1000, 2000),
+        createSegment("seg-001", 1, "Hello", now, now + 1000),
+        createSegment("seg-002", 2, "World", now + 1000, now + 2000),
       ];
 
-      expect(calculateSegmentsToLock(segments)).toEqual([]);
+      expect(calculateSegmentsToLock(segments, DEFAULT_REVISION_WINDOW, now + 5000)).toEqual([]);
     });
 
     it("returns segments that should be locked", () => {
+      const now = Date.now();
       const segments = Array.from({ length: 6 }, (_, i) =>
-        createSegment(`seg-${i}`, i + 1, `Text ${i}`, i * 1000, (i + 1) * 1000)
+        createSegment(`seg-${i}`, i + 1, `Text ${i}`, now + i * 1000, now + (i + 1) * 1000)
       );
 
-      const toLock = calculateSegmentsToLock(segments);
+      const toLock = calculateSegmentsToLock(segments, DEFAULT_REVISION_WINDOW, now + 3000);
       expect(toLock.length).toBe(1);
       expect(toLock[0].id).toBe("seg-0");
     });
