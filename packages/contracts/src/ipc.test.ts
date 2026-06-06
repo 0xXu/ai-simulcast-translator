@@ -11,7 +11,6 @@ describe("IPC Protocol", () => {
 
   it("protocol version is immutable", () => {
     expect(() => {
-      // @ts-expect-error: Testing immutability
       (PROTOCOL_VERSION as any) = 2;
     }).toThrow();
   });
