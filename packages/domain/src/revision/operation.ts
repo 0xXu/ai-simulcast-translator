@@ -13,7 +13,7 @@ export interface RevisionOperation {
   readonly segmentId: string;
   readonly expectedVersion: number;
   readonly translation: string;
-  readonly reason?: string;
+  readonly reason?: string | undefined;
 }
 
 /**
