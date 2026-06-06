@@ -36,4 +36,40 @@ describe("AudioCapture", () => {
 
     expect(capture.getState()).toBe("idle");
   });
+
+  it("captures display audio and stops the unused video track", async () => {
+    const videoTrack = { stop: vi.fn() };
+    const audioTrack = { stop: vi.fn() };
+    const stream = {
+      getVideoTracks: () => [videoTrack],
+      getAudioTracks: () => [audioTrack],
+      getTracks: () => [videoTrack, audioTrack],
+    } as unknown as MediaStream;
+    const getDisplayMedia = vi.fn().mockResolvedValue(stream);
+    const addModule = vi.fn().mockResolvedValue(undefined);
+    const connect = vi.fn();
+    const audioContext = {
+      audioWorklet: { addModule },
+      createMediaStreamSource: vi.fn(() => ({ connect })),
+      close: vi.fn(),
+    } as unknown as AudioContext;
+    const workletNode = {
+      port: { onmessage: null },
+    } as unknown as AudioWorkletNode;
+    const capture = new AudioCapture({
+      getDisplayMedia,
+      createAudioContext: () => audioContext,
+      createWorkletNode: () => workletNode,
+    });
+
+    await capture.start();
+
+    expect(getDisplayMedia).toHaveBeenCalledWith({
+      audio: true,
+      video: true,
+    });
+    expect(videoTrack.stop).toHaveBeenCalledOnce();
+    expect(connect).toHaveBeenCalledWith(workletNode);
+    expect(capture.getState()).toBe("capturing");
+  });
 });

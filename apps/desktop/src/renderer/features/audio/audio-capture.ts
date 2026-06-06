@@ -4,6 +4,27 @@ import type { AudioCaptureState, AudioCaptureStatus } from "@simulcast/contracts
 import { createAudioLevel } from "@simulcast/contracts";
 import { VolumeMeter } from "./volume-meter";
 
+export interface AudioCaptureDependencies {
+  readonly getDisplayMedia: (
+    constraints: DisplayMediaStreamOptions,
+  ) => Promise<MediaStream>;
+  readonly createAudioContext: () => AudioContext;
+  readonly createWorkletNode: (
+    context: AudioContext,
+    name: string,
+  ) => AudioWorkletNode;
+}
+
+function createDefaultDependencies(): AudioCaptureDependencies {
+  return {
+    getDisplayMedia: (constraints) =>
+      navigator.mediaDevices.getDisplayMedia(constraints),
+    createAudioContext: () => new AudioContext({ sampleRate: 16000 }),
+    createWorkletNode: (context, name) =>
+      new AudioWorkletNode(context, name),
+  };
+}
+
 /**
  * 音频采集管理器
  */
@@ -15,9 +36,11 @@ export class AudioCapture {
   private volumeMeter: VolumeMeter;
   private onStatusChange: ((status: AudioCaptureStatus) => void) | null = null;
   private onPcmData: ((data: Int16Array) => void) | null = null;
+  private readonly dependencies: AudioCaptureDependencies;
 
-  constructor() {
+  constructor(dependencies: AudioCaptureDependencies = createDefaultDependencies()) {
     this.volumeMeter = new VolumeMeter();
+    this.dependencies = dependencies;
   }
 
   /**
@@ -45,25 +68,29 @@ export class AudioCapture {
     this.setState("requesting");
 
     try {
-      // 请求系统音频
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
+      this.stream = await this.dependencies.getDisplayMedia({
+        audio: true,
+        video: true,
       });
+      this.stream.getVideoTracks().forEach((track) => track.stop());
+
+      if (this.stream.getAudioTracks().length === 0) {
+        throw new Error("未获取到系统音频轨道");
+      }
 
       // 创建 AudioContext
-      this.audioContext = new AudioContext({ sampleRate: 16000 });
+      this.audioContext = this.dependencies.createAudioContext();
 
       // 加载 AudioWorklet
       await this.audioContext.audioWorklet.addModule(
-        new URL("./pcm-worklet.ts", import.meta.url).href
+        new URL("./pcm-worklet.js", import.meta.url).href
       );
 
       // 创建 AudioWorkletNode
-      this.workletNode = new AudioWorkletNode(this.audioContext, "pcm-processor");
+      this.workletNode = this.dependencies.createWorkletNode(
+        this.audioContext,
+        "pcm-processor",
+      );
 
       // 连接音频流
       const source = this.audioContext.createMediaStreamSource(this.stream);
@@ -86,6 +113,7 @@ export class AudioCapture {
 
       this.setState("capturing");
     } catch (error) {
+      this.releaseResources();
       this.setState("error", error instanceof Error ? error.message : "未知错误");
       throw error;
     }
@@ -95,6 +123,12 @@ export class AudioCapture {
    * 停止采集
    */
   stop(): void {
+    this.releaseResources();
+    this.volumeMeter.reset();
+    this.setState("idle");
+  }
+
+  private releaseResources(): void {
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;
@@ -106,8 +140,6 @@ export class AudioCapture {
     }
 
     this.workletNode = null;
-    this.volumeMeter.reset();
-    this.setState("idle");
   }
 
   /**

@@ -1,13 +1,89 @@
+import { useEffect, useRef, useState } from "react";
+import type { AudioCaptureStatus } from "@simulcast/contracts";
+import { AudioCapture } from "../../features/audio/audio-capture";
 import { demoSubtitles } from "./demo-subtitles";
 import "./styles.css";
 
 export type WindowKind = "control" | "overlay";
 
-interface AppProps {
-  windowKind: WindowKind;
+export interface AudioCaptureController {
+  setOnStatusChange(
+    callback: (status: AudioCaptureStatus) => void,
+  ): void;
+  start(): Promise<void>;
+  stop(): void;
 }
 
-function ControlWindow() {
+interface AppProps {
+  windowKind: WindowKind;
+  createAudioCapture?: () => AudioCaptureController;
+}
+
+const initialAudioStatus: AudioCaptureStatus = {
+  state: "idle",
+  level: null,
+  error: null,
+};
+
+function createDefaultAudioCapture(): AudioCaptureController {
+  return new AudioCapture();
+}
+
+function ControlWindow({
+  createAudioCapture,
+}: {
+  createAudioCapture: () => AudioCaptureController;
+}) {
+  const captureRef = useRef<AudioCaptureController | null>(null);
+  const [audioStatus, setAudioStatus] =
+    useState<AudioCaptureStatus>(initialAudioStatus);
+
+  if (!captureRef.current) {
+    captureRef.current = createAudioCapture();
+    captureRef.current.setOnStatusChange(setAudioStatus);
+  }
+
+  useEffect(() => {
+    const capture = captureRef.current;
+    return () => capture?.stop();
+  }, []);
+
+  const isCapturing = audioStatus.state === "capturing";
+  const isRequesting = audioStatus.state === "requesting";
+  const statusTitle = isCapturing
+    ? "系统音频采集中"
+    : audioStatus.state === "error"
+      ? "系统音频采集失败"
+      : isRequesting
+        ? "等待系统授权"
+        : "准备就绪";
+  const statusDetail = audioStatus.error
+    ?? (isCapturing
+      ? `${audioStatus.level?.level ?? 0}%`
+      : "等待采集系统音频");
+
+  async function toggleCapture(): Promise<void> {
+    const capture = captureRef.current;
+    if (!capture) {
+      return;
+    }
+
+    if (isCapturing) {
+      capture.stop();
+      return;
+    }
+
+    try {
+      await capture.start();
+    } catch (error) {
+      setAudioStatus({
+        state: "error",
+        level: null,
+        error: error instanceof Error ? error.message : "系统音频采集失败",
+      });
+    }
+  }
+
   return (
     <main className="control-shell">
       <header className="hero">
@@ -20,10 +96,13 @@ function ControlWindow() {
 
       <section className="status-card" aria-label="运行状态">
         <div>
-          <span className="status-dot" aria-hidden="true" />
-          <strong>准备就绪</strong>
+          <span
+            className={`status-dot status-${audioStatus.state}`}
+            aria-hidden="true"
+          />
+          <strong>{statusTitle}</strong>
         </div>
-        <p>等待接入系统音频</p>
+        <p>{statusDetail}</p>
       </section>
 
       <section className="capability-grid" aria-label="核心能力">
@@ -44,10 +123,17 @@ function ControlWindow() {
         </article>
       </section>
 
-      <button className="primary-action" type="button" disabled>
-        开始演示
+      <button
+        className="primary-action"
+        type="button"
+        disabled={isRequesting}
+        onClick={() => void toggleCapture()}
+      >
+        {isCapturing ? "停止采集" : isRequesting ? "请求授权中" : "开始采集"}
       </button>
-      <p className="action-note">系统音频将在后续独立 PR 中接入</p>
+      <p className="action-note">
+        首次使用时，macOS 会请求屏幕与系统音频录制权限
+      </p>
     </main>
   );
 }
@@ -78,6 +164,11 @@ function OverlayWindow() {
   );
 }
 
-export function App({ windowKind }: AppProps) {
-  return windowKind === "overlay" ? <OverlayWindow /> : <ControlWindow />;
+export function App({
+  windowKind,
+  createAudioCapture = createDefaultAudioCapture,
+}: AppProps) {
+  return windowKind === "overlay"
+    ? <OverlayWindow />
+    : <ControlWindow createAudioCapture={createAudioCapture} />;
 }

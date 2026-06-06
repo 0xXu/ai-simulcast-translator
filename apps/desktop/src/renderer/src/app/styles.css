@@ -90,6 +90,16 @@ h1 {
   box-shadow: 0 0 0 5px rgba(240, 169, 59, 0.14);
 }
 
+.status-dot.status-capturing {
+  background: #2aa876;
+  box-shadow: 0 0 0 5px rgba(42, 168, 118, 0.14);
+}
+
+.status-dot.status-error {
+  background: #d84c4c;
+  box-shadow: 0 0 0 5px rgba(216, 76, 76, 0.14);
+}
+
 .capability-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

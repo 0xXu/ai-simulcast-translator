@@ -6,6 +6,7 @@ import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
 import { createRendererUrl } from "./renderer-url";
 import type { WindowKind } from "./renderer-url";
 import { registerIpcHandlers } from "./ipc/register-handlers";
+import { registerDisplayMediaHandler } from "./audio/register-display-media";
 
 let controlWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -189,6 +190,7 @@ if (!hasSingleInstanceLock) {
     .whenReady()
     .then(() => {
       registerIpcHandlers();
+      registerDisplayMediaHandler();
       createApplicationWindows();
 
       app.on("activate", () => {

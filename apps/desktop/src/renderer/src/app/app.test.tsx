@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { App } from "./app";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { App, type AudioCaptureController } from "./app";
 
 describe("App", () => {
   it("renders the control window", () => {
@@ -9,10 +9,46 @@ describe("App", () => {
       screen.getByRole("heading", { name: "AI 同声传译助手" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "开始演示" }),
-    ).toBeDisabled();
-    expect(screen.getByText("等待接入系统音频")).toBeInTheDocument();
+      screen.getByRole("button", { name: "开始采集" }),
+    ).toBeEnabled();
+    expect(screen.getByText("等待采集系统音频")).toBeInTheDocument();
     expect(screen.queryByText("字幕演示")).not.toBeInTheDocument();
+  });
+
+  it("starts and stops system audio capture while displaying the level", async () => {
+    let onStatusChange:
+      | Parameters<AudioCaptureController["setOnStatusChange"]>[0]
+      | null = null;
+    const controller: AudioCaptureController = {
+      setOnStatusChange: vi.fn((callback) => {
+        onStatusChange = callback;
+      }),
+      start: vi.fn(async () => {
+        onStatusChange?.({
+          state: "capturing",
+          level: { level: 42, timestamp: Date.now() },
+          error: null,
+        });
+      }),
+      stop: vi.fn(() => {
+        onStatusChange?.({ state: "idle", level: null, error: null });
+      }),
+    };
+
+    render(
+      <App
+        windowKind="control"
+        createAudioCapture={() => controller}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "开始采集" }));
+
+    expect(await screen.findByText("系统音频采集中")).toBeInTheDocument();
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "停止采集" }));
+    expect(controller.stop).toHaveBeenCalledOnce();
+    expect(screen.getByText("等待采集系统音频")).toBeInTheDocument();
   });
 
   it("renders the subtitle overlay", () => {
