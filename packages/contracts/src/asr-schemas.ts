@@ -8,6 +8,10 @@ const Base64Schema = z
   .min(1)
   .regex(
     /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
+  )
+  .refine(
+    (value) => Buffer.from(value, "base64").toString("base64") === value,
+    "Audio data must use canonical base64 encoding",
   );
 
 export const AsrSessionRequestSchema = IpcMessageSchema.extend({

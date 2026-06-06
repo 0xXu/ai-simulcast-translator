@@ -53,7 +53,7 @@ describe("ASR contracts", () => {
     },
   );
 
-  it.each(["", "not base64!", "A", "AA=A"])(
+  it.each(["", "not base64!", "A", "AA=A", "AB==", "AAB="])(
     "rejects invalid base64 audio data %j",
     (audioData) => {
       expect(() =>
