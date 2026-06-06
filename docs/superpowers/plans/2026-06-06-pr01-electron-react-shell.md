@@ -86,6 +86,10 @@
 packages:
   - apps/*
   - packages/*
+
+allowBuilds:
+  electron: true
+  esbuild: true
 ```
 
 - [ ] **Step 3: 写入共享 TypeScript 配置**

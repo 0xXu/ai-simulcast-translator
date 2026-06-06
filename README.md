@@ -121,6 +121,8 @@ pnpm install
 pnpm dev
 ```
 
+为控制供应链风险，项目仅授权 Electron 和 esbuild 执行安装构建脚本。
+
 若系统提示 `corepack: command not found`，先安装 Corepack：
 
 ```bash
