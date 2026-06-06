@@ -2,8 +2,14 @@
 
 """ASR Worker 主入口"""
 
+from __future__ import annotations
+
+import argparse
 import sys
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
+
+if TYPE_CHECKING:
+    from .engine import AsrEngine
 
 from .protocol import (
     AudioMessage,
@@ -19,10 +25,15 @@ from .mock_engine import MockAsrEngine
 class AsrWorker:
     """ASR Worker 主类"""
 
-    def __init__(self, input_stream: TextIO, output_stream: TextIO):
+    def __init__(
+        self,
+        input_stream: TextIO,
+        output_stream: TextIO,
+        engine: "AsrEngine | None" = None,
+    ) -> None:
         self.input_stream = input_stream
         self.output_stream = output_stream
-        self.engine = MockAsrEngine()
+        self.engine = engine or MockAsrEngine()
         self.running = False
 
     def run(self):
@@ -104,9 +115,37 @@ class AsrWorker:
         self.output_stream.flush()
 
 
+def create_engine(name: str, **kwargs) -> "AsrEngine":
+    """工厂函数：根据名称创建识别引擎实例"""
+    if name == "mock":
+        return MockAsrEngine()
+    if name == "faster-whisper":
+        from .faster_whisper_engine import FasterWhisperEngine, FasterWhisperConfig
+        config = FasterWhisperConfig(
+            model_name=kwargs.get("model_name", "small.en"),
+            device=kwargs.get("device", "cpu"),
+            compute_type=kwargs.get("compute_type", "int8"),
+        )
+        return FasterWhisperEngine(config=config)
+    raise ValueError(f"unknown engine: {name}")
+
+
 def main():
     """主入口"""
-    worker = AsrWorker(sys.stdin, sys.stdout)
+    parser = argparse.ArgumentParser(description="ASR Worker")
+    parser.add_argument("--engine", choices=["mock", "faster-whisper"], default="mock")
+    parser.add_argument("--model", default="small.en")
+    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--compute-type", default="int8")
+    args = parser.parse_args()
+
+    engine = create_engine(
+        args.engine,
+        model_name=args.model,
+        device=args.device,
+        compute_type=args.compute_type,
+    )
+    worker = AsrWorker(sys.stdin, sys.stdout, engine=engine)
     worker.run()
 
 

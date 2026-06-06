@@ -122,7 +122,7 @@ Exit code 0
 
 ```bash
 git add packages/domain/package.json packages/domain/tsconfig.json packages/domain/src/index.ts pnpm-lock.yaml pnpm-workspace.yaml
-git commit -m "工程：创建字幕领域模型包"
+git commit -m "chore: 创建字幕领域模型包"
 ```
 
 ---
@@ -317,7 +317,7 @@ Error: Cannot find module './segment'
 
 ```bash
 git add packages/domain/src/subtitle/segment.ts packages/domain/src/subtitle/segment.test.ts
-git commit -m "测试：定义字幕片段接口与操作"
+git commit -m "test: 定义字幕片段接口与操作"
 ```
 
 ---
@@ -347,7 +347,7 @@ Tests       4 passed (4)
 
 ```bash
 git add packages/domain/src/subtitle/segment.ts
-git commit -m "功能：实现字幕片段接口与操作"
+git commit -m "feat: 实现字幕片段接口与操作"
 ```
 
 ---
@@ -547,7 +547,7 @@ Error: Cannot find module './revision-window'
 
 ```bash
 git add packages/domain/src/subtitle/revision-window.ts packages/domain/src/subtitle/revision-window.test.ts
-git commit -m "测试：定义修订窗口逻辑"
+git commit -m "test: 定义修订窗口逻辑"
 ```
 
 ---
@@ -577,7 +577,7 @@ Tests       10 passed (10)
 
 ```bash
 git add packages/domain/src/subtitle/revision-window.ts
-git commit -m "功能：实现修订窗口逻辑"
+git commit -m "feat: 实现修订窗口逻辑"
 ```
 
 ---
@@ -888,7 +888,7 @@ Error: Cannot find module './timeline'
 
 ```bash
 git add packages/domain/src/subtitle/timeline.ts packages/domain/src/subtitle/timeline.test.ts
-git commit -m "测试：定义字幕时间线类"
+git commit -m "test: 定义字幕时间线类"
 ```
 
 ---
@@ -918,7 +918,7 @@ Tests       18 passed (18)
 
 ```bash
 git add packages/domain/src/subtitle/timeline.ts
-git commit -m "功能：实现字幕时间线类"
+git commit -m "feat: 实现字幕时间线类"
 ```
 
 ---
@@ -973,7 +973,7 @@ Exit code 0
 
 ```bash
 git add packages/domain/src/index.ts
-git commit -m "功能：创建 domain 包公开入口"
+git commit -m "feat: 创建 domain 包公开入口"
 ```
 
 ---
@@ -1047,7 +1047,7 @@ Expected:
 PR 标题：
 
 ```text
-功能：新增字幕时间线领域模型
+feat: 新增字幕时间线领域模型
 ```
 
 PR 描述：
@@ -1088,5 +1088,5 @@ PR 描述：
 - 修订窗口逻辑正确：超过 5 句或 20 秒的片段被锁定。
 - 锁定片段不能恢复为可修订状态。
 - `pnpm test:run`、`pnpm typecheck` 全部通过。
-- 所有提交信息均为中文。
+- 所有提交信息均使用英文类型前缀和中文描述。
 - PR 只交付字幕时间线领域模型，不包含音频、ASR、MiMo 或 UI 逻辑。

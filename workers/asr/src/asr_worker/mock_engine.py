@@ -27,6 +27,6 @@ class MockAsrEngine:
             is_final=True,
         )
 
-    def reset(self):
+    def reset(self) -> None:
         """重置引擎状态"""
         self.processed_count = 0

@@ -106,3 +106,45 @@ class TestAsrWorker:
         # 应该只发送 ready 状态然后退出
         output = output_stream.getvalue()
         assert '"status": "ready"' in output
+
+
+from .engine import AsrEngine
+
+
+class TestEngineInjection:
+    def test_default_uses_mock_engine(self):
+        from .mock_engine import MockAsrEngine
+        worker = AsrWorker(io.StringIO(""), io.StringIO())
+        assert isinstance(worker.engine, MockAsrEngine)
+
+    def test_can_inject_custom_engine(self):
+        class FakeEngine:
+            def __init__(self):
+                self.calls = []
+            def process_audio(self, audio_message):
+                self.calls.append(audio_message)
+                return None
+            def reset(self):
+                pass
+        fake = FakeEngine()
+        worker = AsrWorker(io.StringIO(""), io.StringIO(), engine=fake)
+        assert worker.engine is fake
+
+
+class TestCreateEngine:
+    def test_create_mock_engine(self):
+        from .main import create_engine
+        from .mock_engine import MockAsrEngine
+        engine = create_engine("mock")
+        assert isinstance(engine, MockAsrEngine)
+
+    def test_create_faster_whisper_engine(self):
+        from .main import create_engine
+        from .faster_whisper_engine import FasterWhisperEngine
+        engine = create_engine("faster-whisper", model_name="small.en", device="cpu", compute_type="int8")
+        assert isinstance(engine, FasterWhisperEngine)
+
+    def test_create_unknown_engine_raises(self):
+        from .main import create_engine
+        with pytest.raises(ValueError, match="unknown engine"):
+            create_engine("nonexistent")

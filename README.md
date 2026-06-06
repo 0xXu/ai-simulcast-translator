@@ -140,6 +140,28 @@ pnpm typecheck
 pnpm build
 ```
 
+
+## ASR Worker 运行模式
+
+| 模式 | 命令 | 用途 |
+|------|------|------|
+| Mock（默认） | `uv run python -m asr_worker.main` | 开发、CI、现有桌面演示 |
+| 真实模型 | `uv run python -m asr_worker.main --engine faster-whisper` | 本地验收，需首次下载模型 |
+
+### 真实模型冒烟验证
+
+```bash
+# 生成固定测试音频
+mkdir -p /tmp/ai-simulcast-smoke
+say -v Samantha "Today we are building a real time translation assistant." -o /tmp/ai-simulcast-smoke/english-demo.aiff
+afconvert -f WAVE -d LEI16@16000 -c 1 /tmp/ai-simulcast-smoke/english-demo.aiff /tmp/ai-simulcast-smoke/english-demo.wav
+
+# 运行冒烟测试
+uv run python workers/asr/scripts/smoke_faster_whisper.py /tmp/ai-simulcast-smoke/english-demo.wav
+```
+
+> **注意：** PR 07 尚未接通桌面 PCM 到真实 Worker；端到端音频链路属于 PR 08。
+
 ## 性能目标
 
 - 首个中文字幕中位延迟不高于 3 秒。
