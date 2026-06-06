@@ -5,7 +5,7 @@
   "description": "具备语义回溯能力的 AI 同声传译桌面应用",
   "packageManager": "pnpm@11.5.2",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
     "dev": "pnpm --filter @simulcast/desktop dev",

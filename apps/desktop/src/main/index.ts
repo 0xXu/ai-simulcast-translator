@@ -1,28 +1,13 @@
 import { app, BrowserWindow, shell } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
-
-type WindowKind = "control" | "overlay";
+import { createRendererUrl } from "./renderer-url";
+import type { WindowKind } from "./renderer-url";
 
 let controlWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
-
-function getRendererUrl(windowKind: WindowKind): string {
-  const rendererUrl = process.env.ELECTRON_RENDERER_URL;
-
-  if (rendererUrl) {
-    const url = new URL(rendererUrl);
-    url.hash = windowKind;
-    return url.toString();
-  }
-
-  const url = pathToFileURL(join(__dirname, "../renderer/index.html"));
-  url.hash = windowKind;
-  return url.toString();
-}
 
 function openExternalUrl(url: string): void {
   void shell.openExternal(url).catch((error: unknown) => {
@@ -94,9 +79,18 @@ function createWindow(
     });
   });
 
-  void window.loadURL(getRendererUrl(windowKind)).catch((error: unknown) => {
-    console.error("加载渲染页面失败", { windowKind, error });
-  });
+  void window
+    .loadURL(
+      createRendererUrl({
+        windowKind,
+        isPackaged: app.isPackaged,
+        devServerUrl: process.env.ELECTRON_RENDERER_URL,
+        productionHtmlPath: join(__dirname, "../renderer/index.html"),
+      }),
+    )
+    .catch((error: unknown) => {
+      console.error("加载渲染页面失败", { windowKind, error });
+    });
 
   return window;
 }
@@ -196,10 +190,7 @@ if (!hasSingleInstanceLock) {
       createApplicationWindows();
 
       app.on("activate", () => {
-        if (!isWindowAvailable(controlWindow)) {
-          createApplicationWindows();
-        }
-
+        createApplicationWindows();
         controlWindow?.show();
         controlWindow?.focus();
       });

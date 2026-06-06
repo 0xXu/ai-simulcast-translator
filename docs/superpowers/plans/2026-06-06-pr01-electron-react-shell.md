@@ -6,7 +6,7 @@
 
 **Architecture:** 使用 pnpm workspace 管理桌面应用，Electron Main 只负责窗口生命周期，preload 暴露最小只读运行时信息，React Renderer 根据 URL hash 渲染控制窗口或字幕窗口。此 PR 使用静态演示字幕，不引入业务 IPC、音频、ASR、MiMo 或字幕领域逻辑。
 
-**Tech Stack:** Node.js 22、pnpm 11.5.2、Electron 42.3.3、electron-vite 5.0.0、Vite 7.3.5、React 19.2.7、TypeScript 6.0.3、Vitest 4.1.8、Testing Library。
+**Tech Stack:** Node.js 22.12+（22.x）或 24+、pnpm 11.5.2、Electron 42.3.3、electron-vite 5.0.0、Vite 7.3.5、React 19.2.7、TypeScript 6.0.3、Vitest 4.1.8、Testing Library。
 
 ---
 
@@ -68,7 +68,7 @@
   "description": "具备语义回溯能力的 AI 同声传译桌面应用",
   "packageManager": "pnpm@11.5.2",
   "engines": {
-    "node": ">=22.12.0"
+    "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
     "dev": "pnpm --filter @simulcast/desktop dev",
@@ -895,7 +895,7 @@ WHISPER_MODEL=small.en
 ## 环境要求
 
 - macOS 13 或更高版本
-- Node.js 22.12 或更高版本
+- Node.js 22.12+（22.x）或 24+
 - pnpm 11.5.2
 
 ## 安装与启动
@@ -1015,7 +1015,7 @@ Run:
 
 ```bash
 git grep -nE "(MIMO_API_KEY=.+|sk-[A-Za-z0-9]{16,})" -- \
-  ':!.env.example'
+  apps package.json pnpm-workspace.yaml README.md ':!.env.example'
 ```
 
 Expected:
