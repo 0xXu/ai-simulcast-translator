@@ -1,8 +1,13 @@
+// apps/desktop/src/preload/types.d.ts
+
 export {};
+
+import type { PreloadApi } from "./api";
 
 declare global {
   interface Window {
-    runtimeInfo: Readonly<{
+    readonly api: PreloadApi;
+    readonly runtimeInfo: Readonly<{
       platform: NodeJS.Platform;
       versions: Readonly<{
         chrome: string;
