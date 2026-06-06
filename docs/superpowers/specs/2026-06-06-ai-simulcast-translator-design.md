@@ -294,14 +294,28 @@ interface FrontendToBackendCommands {
 
 ### 8.1 macOS 系统音频
 
-Electron 本身不应承担底层系统回环音频实现。首版通过独立原生采集模块或可控的虚拟音频设备方案获得 PCM 数据，统一输出：
+首版使用 Electron 的桌面媒体捕获链路获取系统音频：
+
+1. Electron Main 使用 `session.defaultSession.setDisplayMediaRequestHandler` 注册授权处理器。
+2. 处理器通过 `desktopCapturer.getSources` 选择屏幕源，并返回 `audio: "loopback"`。
+3. Renderer 仅在用户点击开始后调用 `navigator.mediaDevices.getDisplayMedia`。
+4. Renderer 获得流后立即停止不需要的视频轨道，只保留系统音频轨道。
+5. AudioWorklet 将音频统一转换为：
 
 - 采样率：16 kHz
 - 声道：单声道
 - 编码：16-bit PCM little-endian
 - 数据块：200 至 500 ms
 
-技术验证时优先评估 ScreenCaptureKit 音频捕获。若 Electron/Node 原生桥接在比赛周期内不稳定，则提供 BlackHole 等虚拟设备作为兼容方案，但产品界面必须给出明确安装和选择指引。
+支持边界：
+
+- 首版直接捕获支持 macOS 13 及以上。
+- macOS 14.2 及以上的打包配置必须包含 `NSAudioCaptureUsageDescription`。
+- macOS 12.7.6 及以下不宣称支持直接系统音频捕获，提供 BlackHole 等虚拟音频设备作为降级方案。
+- `getUserMedia({ audio: true })` 只能用于用户明确选择的虚拟音频输入设备，不能作为系统音频默认实现。
+
+该方案依据 Electron 官方 `desktopCapturer` 文档：
+<https://www.electronjs.org/docs/latest/api/desktop-capturer/>
 
 ### 8.2 缓冲与背压
 
@@ -440,6 +454,12 @@ interface SubtitleSegment {
 7. 成功修改后增加字幕版本和全局时间线版本。
 
 版本不匹配的操作直接丢弃，并在存在未处理新文本时触发一次合并请求。这样可以避免较慢的旧响应覆盖较新的翻译。
+
+`upsert` 和 `replace` 都必须执行 `expectedVersion` 校验：
+
+- 首次写入使用 `upsert`，其 `expectedVersion` 通常为 `0`。
+- 已存在译文时，无论操作名是 `upsert` 还是 `replace`，版本不匹配都必须拒绝。
+- `replace` 用于表达语义修订意图，但不能因此拥有不同的并发覆盖规则。
 
 ## 14. Semantic Rewind
 
