@@ -60,7 +60,7 @@ export class SubtitleTimeline {
    */
   updateSourceText(id: string, sourceText: string): SubtitleSegment | undefined {
     const segment = this.segments.get(id);
-    if (!segment) {
+    if (!segment || segment.state === "locked") {
       return undefined;
     }
 
@@ -80,7 +80,7 @@ export class SubtitleTimeline {
    */
   updateTranslatedText(id: string, translatedText: string): SubtitleSegment | undefined {
     const segment = this.segments.get(id);
-    if (!segment) {
+    if (!segment || segment.state === "locked") {
       return undefined;
     }
 
@@ -100,7 +100,7 @@ export class SubtitleTimeline {
    */
   updateState(id: string, state: SegmentState): SubtitleSegment | undefined {
     const segment = this.segments.get(id);
-    if (!segment) {
+    if (!segment || (segment.state === "locked" && state !== "locked")) {
       return undefined;
     }
 
@@ -116,12 +116,16 @@ export class SubtitleTimeline {
   applyRevisionWindow(currentTimeMs: number = Date.now()): readonly SubtitleSegment[] {
     const segments = this.getSegments();
     const toLock = calculateSegmentsToLock(segments, this.config, currentTimeMs);
+    const locked: SubtitleSegment[] = [];
 
     for (const segment of toLock) {
-      this.segments.set(segment.id, updateState(segment, "locked"));
+      const updated = this.updateState(segment.id, "locked");
+      if (updated) {
+        locked.push(updated);
+      }
     }
 
-    return toLock;
+    return locked;
   }
 
   /**

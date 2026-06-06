@@ -69,6 +69,38 @@ describe("SubtitleTimeline", () => {
     });
   });
 
+  describe("locked segments", () => {
+    it("cannot return to a revisable state", () => {
+      const timeline = new SubtitleTimeline();
+      const now = Date.now();
+      timeline.addSegment("seg-001", "Hello", now, now + 1000);
+      timeline.updateState("seg-001", "locked");
+
+      expect(timeline.updateState("seg-001", "revisable")).toBeUndefined();
+      expect(timeline.getSegment("seg-001")?.state).toBe("locked");
+    });
+
+    it("cannot update source or translated text", () => {
+      const timeline = new SubtitleTimeline();
+      const now = Date.now();
+      timeline.addSegment("seg-001", "Hello", now, now + 1000);
+      timeline.updateTranslatedText("seg-001", "你好");
+      timeline.updateState("seg-001", "locked");
+
+      expect(
+        timeline.updateSourceText("seg-001", "Changed"),
+      ).toBeUndefined();
+      expect(
+        timeline.updateTranslatedText("seg-001", "已修改"),
+      ).toBeUndefined();
+      expect(timeline.getSegment("seg-001")).toMatchObject({
+        sourceText: "Hello",
+        translatedText: "你好",
+        state: "locked",
+      });
+    });
+  });
+
   describe("applyRevisionWindow", () => {
     it("locks segments beyond max sentences", () => {
       const timeline = new SubtitleTimeline({ maxSentences: 3, maxTimeMs: 20_000 });
@@ -79,7 +111,11 @@ describe("SubtitleTimeline", () => {
       }
 
       const locked = timeline.applyRevisionWindow(now + 5000);
-      expect(locked.length).toBe(2); // seg-0 和 seg-1 应该被锁定
+      expect(locked).toHaveLength(2);
+      expect(locked.every((segment) => segment.state === "locked")).toBe(true);
+      expect(timeline.getSegment("seg-0")?.state).toBe("locked");
+      expect(timeline.getSegment("seg-1")?.state).toBe("locked");
+      expect(timeline.getRevision()).toBe(7);
     });
 
     it("does not lock segments within window", () => {
