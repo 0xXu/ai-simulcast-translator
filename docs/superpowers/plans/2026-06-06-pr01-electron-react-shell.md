@@ -1049,7 +1049,7 @@ Renderer 根据 URL hash 渲染对应界面。
 ## 测试方式
 
 1. 执行 `pnpm install`。
-2. 执行 `pnpm test:run`，确认 2 个组件测试通过。
+2. 执行 `pnpm test:run`，确认全部测试通过。
 3. 执行 `pnpm typecheck` 和 `pnpm build`。
 4. 执行 `pnpm dev`，确认控制窗口与字幕窗口同时出现。
 
