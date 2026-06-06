@@ -5,7 +5,3 @@ packages:
 allowBuilds:
   electron: true
   esbuild: true
-
-minimumReleaseAgeExclude:
-  - '@types/node@22.19.20'
-  - '@types/react@19.2.17'
