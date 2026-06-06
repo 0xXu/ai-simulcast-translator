@@ -3,7 +3,7 @@ import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { isAllowedExternalUrl } from "./navigation-policy";
+import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
 
 type WindowKind = "control" | "overlay";
 
@@ -30,18 +30,10 @@ function openExternalUrl(url: string): void {
   });
 }
 
-function isCurrentPageNavigation(targetUrl: string, currentUrl: string): boolean {
-  try {
-    const target = new URL(targetUrl);
-    const current = new URL(currentUrl);
-
-    target.hash = "";
-    current.hash = "";
-
-    return target.href === current.href;
-  } catch {
-    return false;
-  }
+function handleStartupFailure(context: string, error: unknown): void {
+  console.error(context, error);
+  process.exitCode = 1;
+  app.quit();
 }
 
 function createWindow(
@@ -67,16 +59,19 @@ function createWindow(
   });
 
   window.webContents.on("will-navigate", (event) => {
-    if (
-      !event.isMainFrame ||
-      isCurrentPageNavigation(event.url, window.webContents.getURL())
-    ) {
+    const decision = decideNavigation(
+      event.url,
+      window.webContents.getURL(),
+      event.isMainFrame,
+    );
+
+    if (decision === "allow-current") {
       return;
     }
 
     event.preventDefault();
 
-    if (isAllowedExternalUrl(event.url)) {
+    if (decision === "open-external") {
       openExternalUrl(event.url);
     }
   });
@@ -187,21 +182,31 @@ if (!hasSingleInstanceLock) {
       return;
     }
 
-    void app.whenReady().then(showAndFocusControlWindow);
+    void app
+      .whenReady()
+      .then(showAndFocusControlWindow)
+      .catch((error: unknown) => {
+        handleStartupFailure("处理第二实例失败", error);
+      });
   });
 
-  void app.whenReady().then(() => {
-    createApplicationWindows();
+  void app
+    .whenReady()
+    .then(() => {
+      createApplicationWindows();
 
-    app.on("activate", () => {
-      if (!isWindowAvailable(controlWindow)) {
-        createApplicationWindows();
-      }
+      app.on("activate", () => {
+        if (!isWindowAvailable(controlWindow)) {
+          createApplicationWindows();
+        }
 
-      controlWindow?.show();
-      controlWindow?.focus();
+        controlWindow?.show();
+        controlWindow?.focus();
+      });
+    })
+    .catch((error: unknown) => {
+      handleStartupFailure("应用启动失败", error);
     });
-  });
 
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") {
