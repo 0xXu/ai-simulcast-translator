@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
 
+import { registerIpcHandlers } from "./ipc/register-handlers";
 import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
 import { createRendererUrl } from "./renderer-url";
 import type { WindowKind } from "./renderer-url";
@@ -187,6 +188,7 @@ if (!hasSingleInstanceLock) {
   void app
     .whenReady()
     .then(() => {
+      registerIpcHandlers();
       createApplicationWindows();
 
       app.on("activate", () => {

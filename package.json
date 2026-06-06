@@ -10,8 +10,8 @@
   "scripts": {
     "dev": "pnpm --filter @simulcast/desktop dev",
     "build": "pnpm --filter @simulcast/desktop build",
-    "typecheck": "pnpm --filter @simulcast/desktop typecheck",
-    "test": "pnpm --filter @simulcast/desktop test",
-    "test:run": "pnpm --filter @simulcast/desktop test:run"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:run": "pnpm -r test:run"
   }
 }
