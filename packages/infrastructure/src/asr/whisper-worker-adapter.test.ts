@@ -37,7 +37,7 @@ describe("WhisperWorkerAdapter", () => {
     adapter["_handleMessage"]('{"type": "result", "session_id": "session-001", "sequence": 1, "text": "Hello", "confidence": 0.95, "start_ms": 0, "end_ms": 1000, "is_final": true}');
 
     expect(resultCallback).toHaveBeenCalled();
-    expect(resultCallback.mock.calls[0][0].text).toBe("Hello");
+    expect(resultCallback.mock.calls[0]![0].text).toBe("Hello");
   });
 
   it("emits error event", () => {
