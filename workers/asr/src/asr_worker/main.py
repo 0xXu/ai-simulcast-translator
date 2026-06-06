@@ -3,7 +3,6 @@
 """ASR Worker 主入口"""
 
 import sys
-import json
 from typing import TextIO
 
 from .protocol import (
@@ -71,7 +70,11 @@ class AsrWorker:
             if result:
                 self._send_result(result)
         except Exception as e:
-            self._send_error("PROCESSING_ERROR", str(e))
+            self._send_error(
+                "PROCESSING_ERROR",
+                str(e),
+                session_id=audio.session_id,
+            )
 
     def _send_result(self, result: ResultMessage):
         """发送识别结果"""

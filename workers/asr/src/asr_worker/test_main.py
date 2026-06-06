@@ -3,6 +3,7 @@
 """ASR Worker 主入口测试"""
 
 import io
+import json
 import pytest
 from .main import AsrWorker
 from .protocol import AudioMessage, serialize_message
@@ -59,6 +60,41 @@ class TestAsrWorker:
         output = output_stream.getvalue()
         assert '"type": "error"' in output
         assert '"error_code": "INVALID_MESSAGE"' in output
+
+    def test_worker_handles_non_object_json_as_invalid_message(self):
+        input_stream = io.StringIO("[]\n")
+        output_stream = io.StringIO()
+
+        worker = AsrWorker(input_stream, output_stream)
+        worker.run()
+
+        output = output_stream.getvalue()
+        assert '"error_code": "INVALID_MESSAGE"' in output
+        assert '"error_code": "UNKNOWN"' not in output
+
+    def test_processing_error_preserves_session_id(self):
+        audio = AudioMessage(
+            session_id="session-001",
+            sequence=1,
+            audio_data="base64data",
+        )
+        input_stream = io.StringIO(serialize_message(audio) + "\n")
+        output_stream = io.StringIO()
+        worker = AsrWorker(input_stream, output_stream)
+
+        def fail_processing(_audio):
+            raise RuntimeError("engine failed")
+
+        worker.engine.process_audio = fail_processing
+        worker.run()
+
+        messages = [
+            json.loads(line)
+            for line in output_stream.getvalue().splitlines()
+        ]
+        error = next(message for message in messages if message["type"] == "error")
+        assert error["error_code"] == "PROCESSING_ERROR"
+        assert error["session_id"] == "session-001"
 
     def test_worker_stops_on_empty_input(self):
         input_stream = io.StringIO("")
