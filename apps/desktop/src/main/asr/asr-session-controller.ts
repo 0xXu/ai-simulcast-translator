@@ -1,0 +1,211 @@
+import type {
+  AsrAudioRequest,
+  AsrEvent,
+  AsrSessionResponse,
+  AsrSessionState,
+} from "@simulcast/contracts";
+import type {
+  AsrMessage,
+  WhisperWorkerLaunchOptions,
+} from "@simulcast/infrastructure";
+
+type AsrWorkerEvent = "result" | "error" | "exit";
+type AsrWorkerListener = (...args: any[]) => void;
+
+export interface AsrWorkerPort {
+  start(options: WhisperWorkerLaunchOptions): Promise<void>;
+  stop(): void;
+  sendAudio(
+    sessionId: string,
+    audioData: string,
+    sampleRate: number,
+    channels: number,
+  ): void;
+  getIsReady(): boolean;
+  on(event: AsrWorkerEvent, listener: AsrWorkerListener): this;
+  off(event: AsrWorkerEvent, listener: AsrWorkerListener): this;
+}
+
+export interface AsrSessionControllerOptions {
+  readonly worker: AsrWorkerPort;
+  readonly publish: (event: AsrEvent) => void;
+  readonly launch: WhisperWorkerLaunchOptions;
+}
+
+export class AsrSessionController {
+  private readonly worker: AsrWorkerPort;
+  private readonly publish: (event: AsrEvent) => void;
+  private readonly launch: WhisperWorkerLaunchOptions;
+  private activeSessionId: string | null = null;
+  private state: AsrSessionState = "idle";
+
+  private readonly handleResult = (message: AsrMessage): void => {
+    if (
+      message.type !== "result" ||
+      !this.activeSessionId ||
+      message.session_id !== this.activeSessionId ||
+      typeof message.sequence !== "number" ||
+      typeof message.text !== "string" ||
+      typeof message.confidence !== "number" ||
+      typeof message.start_ms !== "number" ||
+      typeof message.end_ms !== "number" ||
+      typeof message.is_final !== "boolean"
+    ) {
+      return;
+    }
+
+    this.publish({
+      type: "transcript",
+      sessionId: this.activeSessionId,
+      sequence: message.sequence,
+      text: message.text,
+      confidence: message.confidence,
+      startMs: message.start_ms,
+      endMs: message.end_ms,
+      isFinal: message.is_final,
+    });
+  };
+
+  private readonly handleError = (error: Error | AsrMessage): void => {
+    const sessionId = this.activeSessionId;
+    if (!sessionId) {
+      return;
+    }
+
+    if (error instanceof Error) {
+      this.state = "error";
+      this.publish({
+        type: "error",
+        sessionId,
+        code: "WORKER_ERROR",
+        message: error.message,
+        recoverable: true,
+      });
+      return;
+    }
+
+    if (
+      error.type !== "error" ||
+      (error.session_id && error.session_id !== sessionId)
+    ) {
+      return;
+    }
+
+    this.state = "error";
+    this.publish({
+      type: "error",
+      sessionId,
+      code: error.error_code ?? "WORKER_ERROR",
+      message: error.error_message ?? "ASR Worker 处理失败",
+      recoverable: true,
+    });
+  };
+
+  private readonly handleExit = (code: number | null): void => {
+    const sessionId = this.activeSessionId;
+    if (!sessionId) {
+      return;
+    }
+
+    this.activeSessionId = null;
+    this.state = "idle";
+    this.publish({
+      type: "error",
+      sessionId,
+      code: "WORKER_EXITED",
+      message: `ASR Worker exited with code ${String(code)}`,
+      recoverable: true,
+    });
+  };
+
+  constructor(options: AsrSessionControllerOptions) {
+    this.worker = options.worker;
+    this.publish = options.publish;
+    this.launch = options.launch;
+
+    this.worker.on("result", this.handleResult);
+    this.worker.on("error", this.handleError);
+    this.worker.on("exit", this.handleExit);
+  }
+
+  async startSession(sessionId: string): Promise<AsrSessionResponse> {
+    if (this.activeSessionId && this.activeSessionId !== sessionId) {
+      throw new Error("已有 ASR 会话正在运行");
+    }
+    if (this.activeSessionId === sessionId && this.state === "ready") {
+      return { sessionId, state: "ready" };
+    }
+
+    this.activeSessionId = sessionId;
+    this.state = "starting";
+    this.publish({
+      type: "status",
+      sessionId,
+      state: "starting",
+      message: "正在启动本地语音识别",
+    });
+
+    try {
+      await this.worker.start(this.launch);
+      this.state = "ready";
+      this.publish({
+        type: "status",
+        sessionId,
+        state: "ready",
+        message: "本地语音识别已就绪",
+      });
+      return { sessionId, state: "ready" };
+    } catch (error) {
+      this.state = "error";
+      this.publish({
+        type: "error",
+        sessionId,
+        code: "WORKER_START_FAILED",
+        message: error instanceof Error ? error.message : "ASR Worker 启动失败",
+        recoverable: true,
+      });
+      this.activeSessionId = null;
+      this.worker.stop();
+      this.state = "idle";
+      throw error;
+    }
+  }
+
+  sendAudio(request: AsrAudioRequest): void {
+    if (!this.activeSessionId) {
+      throw new Error("没有正在运行的 ASR 会话");
+    }
+    if (request.sessionId !== this.activeSessionId) {
+      throw new Error("ASR 会话不匹配");
+    }
+    if (this.state !== "ready" || !this.worker.getIsReady()) {
+      throw new Error("ASR Worker 尚未就绪");
+    }
+
+    this.worker.sendAudio(
+      request.sessionId,
+      request.audioData,
+      request.sampleRate,
+      request.channels,
+    );
+  }
+
+  stopSession(sessionId: string): AsrSessionResponse {
+    if (sessionId === this.activeSessionId) {
+      this.activeSessionId = null;
+      this.state = "idle";
+      this.worker.stop();
+    }
+
+    return { sessionId, state: "idle" };
+  }
+
+  dispose(): void {
+    this.worker.off("result", this.handleResult);
+    this.worker.off("error", this.handleError);
+    this.worker.off("exit", this.handleExit);
+    this.activeSessionId = null;
+    this.state = "idle";
+    this.worker.stop();
+  }
+}
