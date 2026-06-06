@@ -6,8 +6,8 @@ faster-whisper 识别外语原文，再由 MiMo 完成中文翻译、上下文�
 产品核心能力是 **Semantic Rewind（语义回溯）**：当后续内容改变前文语义时，
 系统可以自动修正最近 5 句或 20 秒内已展示的字幕，而不是永久保留第一次翻译。
 
-> 当前状态：产品与技术设计已经完成，应用代码尚未开始实现，主分支暂不可启动。
-> 后续功能将按照单一功能 PR 分步交付，每次合并后保持主分支可运行、可演示。
+> 当前状态：已完成 Electron + React 静态演示壳，控制窗和悬浮字幕可启动。
+> 系统音频、Whisper、MiMo 和语义回溯将在后续独立 PR 中实现。
 
 ## 核心能力
 
@@ -107,16 +107,36 @@ docs/
 
 ## 开发状态与启动
 
-当前仓库尚未包含 Electron 应用、Node 依赖或 Python Worker，因此没有可执行的安装
-和启动命令。第一个实现 PR 将创建可运行的 Electron + React 骨架，并同步补充：
+### 环境要求
 
-- Node.js、pnpm、Python 和 macOS 的版本要求。
-- 安装、开发、构建和测试命令。
-- `.env.example` 配置说明。
-- MiMo API 和 Whisper 模型准备步骤。
-- 最小演示与故障排查流程。
+- macOS 13+
+- Node.js 22.12+
+- pnpm 11.5.2
 
-README 中只记录已在主分支验证过的命令，禁止提前写入无法执行的步骤。
+### 安装与启动
+
+```bash
+corepack enable
+pnpm install
+pnpm dev
+```
+
+若系统提示 `corepack: command not found`，先安装 Corepack：
+
+```bash
+npm install --global corepack@0.34.7
+```
+
+启动后会出现两个窗口：控制窗和透明置顶的悬浮字幕窗。当前为静态演示，
+无需填写 `.env.example` 中的 MiMo 和 Whisper 配置。
+
+### 验证
+
+```bash
+pnpm test:run
+pnpm typecheck
+pnpm build
+```
 
 ## 性能目标
 
