@@ -134,7 +134,7 @@ Expected:
 
 ```bash
 git add packages/contracts/package.json packages/contracts/tsconfig.json
-git commit -m "工程：创建类型安全 IPC 契约包"
+git commit -m "chore: 创建类型安全 IPC 契约包"
 ```
 
 ---
@@ -248,7 +248,7 @@ Error: Cannot find module './ipc'
 
 ```bash
 git add packages/contracts/src/ipc.ts packages/contracts/src/ipc.test.ts
-git commit -m "测试：定义 IPC 协议版本类型"
+git commit -m "test: 定义 IPC 协议版本类型"
 ```
 
 ---
@@ -278,7 +278,7 @@ Tests       2 passed (2)
 
 ```bash
 git add packages/contracts/src/ipc.ts
-git commit -m "功能：实现 IPC 协议类型定义"
+git commit -m "feat: 实现 IPC 协议类型定义"
 ```
 
 ---
@@ -484,7 +484,7 @@ Error: Cannot find module './schemas'
 
 ```bash
 git add packages/contracts/src/schemas.ts packages/contracts/src/schemas.test.ts
-git commit -m "测试：定义 Zod Schema 运行时校验"
+git commit -m "test: 定义 Zod Schema 运行时校验"
 ```
 
 ---
@@ -514,7 +514,7 @@ Tests       10 passed (10)
 
 ```bash
 git add packages/contracts/src/schemas.ts
-git commit -m "功能：实现 Zod Schema 运行时校验"
+git commit -m "feat: 实现 Zod Schema 运行时校验"
 ```
 
 ---
@@ -568,7 +568,7 @@ Exit code 0
 
 ```bash
 git add packages/contracts/src/index.ts
-git commit -m "功能：创建 contracts 包公开入口"
+git commit -m "feat: 创建 contracts 包公开入口"
 ```
 
 ---
@@ -610,7 +610,7 @@ Done in Xms
 
 ```bash
 git add apps/desktop/package.json pnpm-lock.yaml
-git commit -m "工程：添加 contracts 包依赖"
+git commit -m "chore: 添加 contracts 包依赖"
 ```
 
 ---
@@ -700,7 +700,7 @@ Error: Cannot find module './api'
 
 ```bash
 git add apps/desktop/src/preload/api.ts apps/desktop/src/preload/api.test.ts
-git commit -m "测试：定义 preload 白名单 API 类型"
+git commit -m "test: 定义 preload 白名单 API 类型"
 ```
 
 ---
@@ -790,7 +790,7 @@ Tests       35 passed (35)
 
 ```bash
 git add apps/desktop/src/preload/index.ts apps/desktop/src/preload/api.ts apps/desktop/src/preload/types.d.ts
-git commit -m "功能：实现 preload 白名单 API"
+git commit -m "feat: 实现 preload 白名单 API"
 ```
 
 ---
@@ -900,7 +900,7 @@ Error: Cannot find module './app-status'
 
 ```bash
 git add apps/desktop/src/main/ipc/app-status.ts apps/desktop/src/main/ipc/app-status.test.ts apps/desktop/src/main/ipc/register-handlers.ts
-git commit -m "测试：定义主进程 IPC 处理器"
+git commit -m "test: 定义主进程 IPC 处理器"
 ```
 
 ---
@@ -960,7 +960,7 @@ Tests       37 passed (37)
 
 ```bash
 git add apps/desktop/src/main/ipc apps/desktop/src/main/index.ts
-git commit -m "功能：实现主进程 IPC 处理器"
+git commit -m "feat: 实现主进程 IPC 处理器"
 ```
 
 ---
@@ -1059,7 +1059,7 @@ All commands exit with code 0
 
 ```bash
 git add package.json
-git commit -m "工程：更新根 package.json 脚本以支持多包"
+git commit -m "chore: 更新根 package.json 脚本以支持多包"
 ```
 
 ---
@@ -1165,5 +1165,5 @@ PR 描述：
 - 非法协议版本在运行时被 Zod 拒绝。
 - Renderer 无法访问任意 `ipcRenderer`（只能通过白名单 API）。
 - `pnpm test:run`、`pnpm typecheck`、`pnpm build` 全部通过。
-- 所有提交信息均为中文。
+- 所有提交信息均使用英文类型前缀和中文描述。
 - PR 只交付类型安全 IPC 契约，不包含音频、ASR、MiMo 或字幕业务逻辑。

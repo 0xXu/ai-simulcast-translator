@@ -20,7 +20,7 @@
 - Worker 协议将非对象 JSON、缺少字段、字段类型错误统一转换为 `ValueError`，
   主循环返回 `INVALID_MESSAGE`。
 - 音频处理失败时错误消息必须保留输入消息的 `session_id`。
-- Worker 的相对路径和 `uv` 依赖可在开发阶段保留；打包运行时归 PR 13。
+- Worker 的相对路径和 `uv` 依赖可在开发阶段保留；打包运行时归 PR 14。
 
 ---
 
@@ -1336,5 +1336,5 @@ PR 描述：
 - Worker 主入口可以处理输入输出流。
 - TypeScript 适配器可以与 Worker 通信。
 - `uv run pytest`、`pnpm -r test:run`、`pnpm -r typecheck` 全部通过。
-- 所有提交信息均为中文（英文前缀 + 中文描述）。
+- 所有提交信息均使用英文类型前缀和中文描述。
 - PR 只交付 Python ASR Worker 协议，不包含 faster-whisper、MiMo 或 UI 逻辑。

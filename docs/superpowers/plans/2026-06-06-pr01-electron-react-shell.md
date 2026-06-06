@@ -153,7 +153,7 @@ Legend: production dependency, optional only, dev only
 
 ```bash
 git add package.json pnpm-workspace.yaml tsconfig.base.json .gitignore
-git commit -m "工程：配置项目工作区与基础工具链"
+git commit -m "chore: 配置项目工作区与基础工具链"
 ```
 
 ### Task 2: 为桌面应用编写失败的渲染测试
@@ -304,7 +304,7 @@ Error: Failed to resolve import "./app"
 git add apps/desktop/package.json apps/desktop/tsconfig.json \
   apps/desktop/vitest.config.ts apps/desktop/src/renderer/src/test/setup.ts \
   apps/desktop/src/renderer/src/app/app.test.tsx pnpm-lock.yaml
-git commit -m "测试：定义桌面应用基础界面行为"
+git commit -m "test: 定义桌面应用基础界面行为"
 ```
 
 ### Task 3: 实现静态控制窗口和字幕窗口
@@ -636,7 +636,7 @@ Tests       2 passed
 
 ```bash
 git add apps/desktop/src/renderer/src/app
-git commit -m "功能：新增控制窗口与字幕演示界面"
+git commit -m "feat: 新增控制窗口与字幕演示界面"
 ```
 
 ### Task 4: 创建 Electron 主进程、preload 和 renderer 入口
@@ -858,7 +858,7 @@ out/renderer/index.html
 git add apps/desktop/electron.vite.config.ts apps/desktop/src/main \
   apps/desktop/src/preload apps/desktop/src/renderer/index.html \
   apps/desktop/src/renderer/src/main.tsx
-git commit -m "功能：创建 Electron 双窗口启动入口"
+git commit -m "feat: 创建 Electron 双窗口启动入口"
 ```
 
 ### Task 5: 补充环境样例和真实启动文档
@@ -955,7 +955,7 @@ Expected:
 
 ```bash
 git add .env.example README.md
-git commit -m "文档：补充桌面应用启动与验证说明"
+git commit -m "docs: 补充桌面应用启动与验证说明"
 ```
 
 ### Task 6: 执行 PR 合并前检查
@@ -1029,7 +1029,7 @@ Expected:
 PR 标题：
 
 ```text
-创建可运行的 Electron 与 React 桌面应用骨架
+feat: 创建可运行的 Electron 与 React 桌面应用骨架
 ```
 
 PR 描述：
@@ -1066,5 +1066,5 @@ Renderer 根据 URL hash 渲染对应界面。
 - Electron Renderer 未开启 Node 集成。
 - 静态演示明确标注尚未接入系统音频。
 - README 中的安装、启动和验证命令已在干净环境验证。
-- 所有提交信息均为中文。
+- 所有提交信息均使用英文类型前缀和中文描述。
 - PR 只交付桌面应用骨架，不包含后续业务能力。

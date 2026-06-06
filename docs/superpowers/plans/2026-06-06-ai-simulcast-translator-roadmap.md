@@ -17,7 +17,8 @@
 每个 PR 必须满足：
 
 - 只实现标题所描述的单一能力。
-- 使用中文提交信息。
+- 提交信息使用英文类型前缀和中文描述，例如
+  `fix: 修订窗口测试使用相对时间避免时间窗口判断失败`。
 - 包含自动化测试或可重复的人工验证步骤。
 - 合并后 `pnpm test`、`pnpm typecheck`、`pnpm build` 仍通过。
 - 主分支可以启动；未接通的外部能力使用 Mock 或明确降级。
@@ -38,7 +39,7 @@
 | FIX 07 | 强化 Worker 消息校验和错误会话路由 | 非法字段返回 `INVALID_MESSAGE`，处理错误保留 sessionId |
 
 这些 PR 必须按表格顺序独立提交和验证。Worker 打包路径、内置 Python
-运行时和根 CI 聚合仍归 PR 13，不混入协议修复 PR。
+运行时和根 CI 聚合仍归 PR 14，不混入协议修复 PR。
 
 ## 2. PR 顺序总览
 
@@ -50,13 +51,14 @@
 | 04 | 版本化字幕修订引擎 | PR 03 | 可演示旧响应被拒绝和字幕原位替换 |
 | 05 | macOS 系统音频采集 | PR 02 | 可使用 loopback 音频并显示系统音频输入电平 |
 | 06 | Python ASR Worker 协议 | PR 02 | Mock Worker 可流式返回带时间戳原文 |
-| 07 | faster-whisper 识别适配器 | PR 05、06 | 播放英文音频时显示实时原文 |
-| 08 | 增量原文稳定与分段 | PR 07 | 原文不重复，稳定段和活动尾部可区分 |
-| 09 | MiMo 文本翻译客户端 | PR 02 | 输入英文可显示 MiMo 中文翻译 |
-| 10 | 上下文翻译调度器 | PR 03、08、09 | 最近 5 句或 20 秒随请求发送 |
-| 11 | Semantic Rewind | PR 04、10 | 后文可修正最近字幕并高亮 |
-| 12 | 设置、安全和异常降级 | PR 05、07、09、11 | 断网或模型失败时继续显示英文 |
-| 13 | CI、打包和演示验收 | PR 12 | 新环境可构建，评委可复现完整演示 |
+| 07 | faster-whisper 识别引擎 | PR 06 | 固定英语 WAV 可通过 Worker 得到真实英文结果 |
+| 08 | 桌面音频到 ASR 的会话链路 | PR 05、06、07 | 播放英文音频时显示实时原文 |
+| 09 | 增量原文稳定与分段 | PR 08 | 原文不重复，稳定段和活动尾部可区分 |
+| 10 | MiMo 文本翻译客户端 | PR 02 | 输入英文可显示 MiMo 中文翻译 |
+| 11 | 上下文翻译调度器 | PR 03、09、10 | 最近 5 句或 20 秒随请求发送 |
+| 12 | Semantic Rewind | PR 04、11 | 后文可修正最近字幕并高亮 |
+| 13 | 设置、安全和异常降级 | PR 05、08、10、12 | 断网或模型失败时继续显示英文 |
+| 14 | CI、打包和演示验收 | PR 13 | 新环境可构建，评委可复现完整演示 |
 
 ## 3. 各 PR 交付定义
 
@@ -74,10 +76,10 @@
 
 **不包含：** IPC 业务契约、音频、ASR、MiMo、字幕状态机。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：创建可运行的桌面应用骨架"
+git commit -m "feat: 创建可运行的桌面应用骨架"
 ```
 
 **详细计划：**
@@ -101,10 +103,10 @@ git commit -m "功能：创建可运行的桌面应用骨架"
 - Renderer 无法访问任意 `ipcRenderer`。
 - `app.status` 查询返回可序列化数据。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增类型安全的进程通信契约"
+git commit -m "feat: 新增类型安全的进程通信契约"
 ```
 
 ### PR 03：新增字幕时间线领域模型
@@ -125,10 +127,10 @@ git commit -m "功能：新增类型安全的进程通信契约"
 - 满足任一边界即锁定。
 - 锁定片段不能恢复为可修订状态。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增字幕时间线与修订窗口"
+git commit -m "feat: 新增字幕时间线与修订窗口"
 ```
 
 ### PR 04：新增版本化字幕修订引擎
@@ -147,10 +149,10 @@ git commit -m "功能：新增字幕时间线与修订窗口"
 - 错误版本、错误会话和锁定字幕被拒绝。
 - 应用成功后时间线和字幕版本递增。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增版本化字幕修订引擎"
+git commit -m "feat: 新增版本化字幕修订引擎"
 ```
 
 ### PR 05：新增 macOS 系统音频采集
@@ -180,10 +182,10 @@ git commit -m "功能：新增版本化字幕修订引擎"
 - 无权限、静音流和停止采集状态。
 - macOS 真机播放固定音频的人工冒烟测试。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增 macOS 系统音频采集"
+git commit -m "feat: 新增 macOS 系统音频采集"
 ```
 
 ### PR 06：新增 Python ASR Worker 协议
@@ -204,10 +206,10 @@ git commit -m "功能：新增 macOS 系统音频采集"
 - 输入序号保持顺序。
 - Worker 崩溃时 TypeScript 适配器发出可恢复错误。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增语音识别 Worker 通信协议"
+git commit -m "feat: 新增语音识别 Worker 通信协议"
 ```
 
 ### PR 07：接入 faster-whisper
@@ -228,13 +230,41 @@ git commit -m "功能：新增语音识别 Worker 通信协议"
 - 固定 WAV 样本得到非空英文结果。
 - Mock 引擎仍可用于 CI，CI 不下载大模型。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：接入本地 faster-whisper 语音识别"
+git commit -m "feat: 接入 faster-whisper PCM 识别引擎"
 ```
 
-### PR 08：新增增量原文稳定与分段
+### PR 08：接通桌面音频到 ASR 的会话链路
+
+**功能描述：** 将 Renderer 输出的 400 ms PCM 数据块通过受限 preload 发送到
+Electron Main，由 Main 管理 Worker 会话、选择真实识别引擎，并把原文事件转发到
+Renderer 展示。
+
+**主要文件：**
+
+- `packages/contracts/src/asr.ts`
+- `apps/desktop/src/preload/api.ts`
+- `apps/desktop/src/main/asr/register-asr-handlers.ts`
+- `apps/desktop/src/renderer/features/audio/audio-capture.ts`
+- `packages/infrastructure/src/asr/whisper-worker-adapter.ts`
+
+**测试重点：**
+
+- Renderer 只能通过白名单 API 发送 PCM。
+- 同一会话的音频序号单调递增。
+- Main 启动真实 Worker 时显式传入引擎参数。
+- Worker 原文事件按 `sessionId` 回到当前会话。
+- Worker 未就绪或退出时 UI 显示可恢复错误。
+
+**提交信息：**
+
+```bash
+git commit -m "feat: 接通桌面音频到 ASR 会话链路"
+```
+
+### PR 09：新增增量原文稳定与分段
 
 **功能描述：** 合并 4 至 6 秒重叠识别窗口，去除重复前缀，将输出分为稳定前缀和活动尾部，并生成稳定 `segmentId`。
 
@@ -250,13 +280,13 @@ git commit -m "功能：接入本地 faster-whisper 语音识别"
 - Whisper 修正尾部时更新原段而非新增重复段。
 - 停顿和句末生成新段。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增增量原文稳定与分段"
+git commit -m "feat: 新增增量原文稳定与分段"
 ```
 
-### PR 09：新增 MiMo 文本翻译客户端
+### PR 10：新增 MiMo 文本翻译客户端
 
 **功能描述：** 实现 `TranslatorPort` 的 MiMo 适配器，调用 OpenAI-compatible `/chat/completions`，校验结构化 JSON，并提供可注入 Mock。
 
@@ -274,13 +304,13 @@ git commit -m "功能：新增增量原文稳定与分段"
 - API Key 只存在于 Electron Main。
 - 非法 JSON 最多重试一次。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增 MiMo 文本翻译客户端"
+git commit -m "feat: 新增 MiMo 文本翻译客户端"
 ```
 
-### PR 10：新增上下文翻译调度器
+### PR 11：新增上下文翻译调度器
 
 **功能描述：** 组合最近 5 句或 20 秒上下文，合并高频输入，同一时刻只运行一个请求并保留一个待处理快照。
 
@@ -298,13 +328,13 @@ git commit -m "功能：新增 MiMo 文本翻译客户端"
 - 请求期间的新文本合并为一个后续请求。
 - 超时不阻塞 ASR 事件。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增上下文翻译调度器"
+git commit -m "feat: 新增上下文翻译调度器"
 ```
 
-### PR 11：新增 Semantic Rewind
+### PR 12：新增 Semantic Rewind
 
 **功能描述：** 将 MiMo 修订操作接入字幕时间线，在悬浮窗原位替换最近字幕，并对变化文本显示 500 至 800 ms 高亮。
 
@@ -322,13 +352,13 @@ git commit -m "功能：新增上下文翻译调度器"
 - 锁定字幕不变化。
 - 高亮结束后保留修订后的文本。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增字幕语义回溯与修订高亮"
+git commit -m "feat: 新增字幕语义回溯与修订高亮"
 ```
 
-### PR 12：新增设置、安全和异常降级
+### PR 13：新增设置、安全和异常降级
 
 **功能描述：** 提供 MiMo 配置、Keychain 密钥保存、运行状态和降级策略。MiMo 故障时继续显示英文原文，Worker 故障时提供重启。
 
@@ -346,13 +376,13 @@ git commit -m "功能：新增字幕语义回溯与修订高亮"
 - Worker 异常状态可见并可重新启动。
 - 日志对密钥和字幕正文脱敏。
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "功能：新增安全设置与运行异常降级"
+git commit -m "feat: 新增安全设置与运行异常降级"
 ```
 
-### PR 13：新增 CI、打包和演示验收
+### PR 14：新增 CI、打包和演示验收
 
 **功能描述：** 建立 GitHub Actions、macOS 构建、Playwright Electron 冒烟测试和固定演示脚本，保证任意提交可复现当前效果。
 
@@ -374,10 +404,10 @@ git commit -m "功能：新增安全设置与运行异常降级"
 - `pnpm test:e2e`
 - Python `ruff check`、`mypy` 和 `pytest`
 
-**中文提交：**
+**提交信息：**
 
 ```bash
-git commit -m "工程：新增持续集成与演示验收流程"
+git commit -m "chore: 新增持续集成与演示验收流程"
 ```
 
 ## 4. 分支与 PR 规范
@@ -396,11 +426,14 @@ git switch -c 功能/pr01-桌面应用骨架
 git switch -c feat/pr01-desktop-shell
 ```
 
-PR 标题使用中文，例如：
+PR 标题与提交信息均使用“英文类型前缀 + 中文描述”，例如：
 
 ```text
-创建可运行的 Electron 与 React 桌面应用骨架
+feat: 创建可运行的 Electron 与 React 桌面应用骨架
 ```
+
+允许的常用类型包括 `feat`、`fix`、`test`、`docs`、`refactor`、
+`build`、`ci` 和 `chore`。类型后使用半角冒号和一个空格，描述使用中文。
 
 PR 描述固定包含：
 
@@ -416,7 +449,7 @@ PR 描述固定包含：
 
 ## 5. 合并策略
 
-- PR 采用 squash merge 时，squash 提交信息也必须为中文。
+- PR 采用 squash merge 时，squash 提交信息也必须使用英文类型前缀和中文描述。
 - 不允许跳过依赖 PR 直接合并后续功能。
 - 真实 MiMo、Whisper 或系统音频不可用时，Mock 演示必须仍可启动。
 - 每次合并后打一个可选的演示标签，例如 `demo-pr01`。
@@ -438,7 +471,7 @@ CI 不下载大型 Whisper 模型，也不调用真实 MiMo。单元和集成测
 
 ## 7. 完成定义
 
-全部 13 个 PR 合并后，项目必须满足设计文档中的首版验收标准：
+全部 14 个 PR 合并后，项目必须满足设计文档中的首版验收标准：
 
 1. macOS 播放英文内容时持续显示中文悬浮字幕。
 2. 原始音频默认不上传，faster-whisper 在本地识别。
