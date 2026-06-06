@@ -3,4 +3,6 @@
 export {
   WhisperWorkerAdapter,
   type AsrMessage,
+  type WhisperWorkerAdapterOptions,
+  type WhisperWorkerLaunchOptions,
 } from "./asr/whisper-worker-adapter";
