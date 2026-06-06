@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
 import { createRendererUrl } from "./renderer-url";
 import type { WindowKind } from "./renderer-url";
+import { registerIpcHandlers } from "./ipc/register-handlers";
 
 let controlWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -187,6 +188,7 @@ if (!hasSingleInstanceLock) {
   void app
     .whenReady()
     .then(() => {
+      registerIpcHandlers();
       createApplicationWindows();
 
       app.on("activate", () => {
