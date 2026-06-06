@@ -18,3 +18,13 @@ export {
   validateIpcMessage,
   safeValidateIpcMessage,
 } from "./schemas";
+
+export {
+  type AudioCaptureState,
+  type AudioLevel,
+  type AudioCaptureConfig,
+  type AudioCaptureStatus,
+  DEFAULT_AUDIO_CONFIG,
+  createAudioLevel,
+  validateAudioConfig,
+} from "./audio";
