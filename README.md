@@ -157,7 +157,7 @@ say -v Samantha "Today we are building a real time translation assistant." -o /t
 afconvert -f WAVE -d LEI16@16000 -c 1 /tmp/ai-simulcast-smoke/english-demo.aiff /tmp/ai-simulcast-smoke/english-demo.wav
 
 # 运行冒烟测试
-uv run python workers/asr/scripts/smoke_faster_whisper.py /tmp/ai-simulcast-smoke/english-demo.wav
+uv run --project workers/asr python workers/asr/scripts/smoke_faster_whisper.py /tmp/ai-simulcast-smoke/english-demo.wav
 ```
 
 > **注意：** PR 07 尚未接通桌面 PCM 到真实 Worker；端到端音频链路属于 PR 08。
