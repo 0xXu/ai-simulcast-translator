@@ -137,5 +137,31 @@ describe("RevisionEngine", () => {
       expect(response.rejectedOperations.length).toBe(1);
       expect(response.rejectedOperations[0]?.reason).toContain("版本不匹配");
     });
+
+    it("rejects upsert operation with mismatched version", () => {
+      const timeline = new SubtitleTimeline();
+      const now = Date.now();
+      timeline.addSegment("seg-001", "Hello", now, now + 1000);
+      timeline.updateTranslatedText("seg-001", "较新的翻译");
+
+      const engine = new RevisionEngine();
+      const request = createRevisionRequest(
+        "req-stale",
+        "session-001",
+        1,
+        [createUpsertOperation("seg-001", "过期翻译", 0)],
+      );
+
+      const response = engine.applyRevisionRequest(
+        request,
+        timeline,
+        "session-001",
+      );
+
+      expect(response.appliedOperations).toHaveLength(0);
+      expect(response.rejectedOperations).toHaveLength(1);
+      expect(response.rejectedOperations[0]?.reason).toContain("版本不匹配");
+      expect(timeline.getSegment("seg-001")?.translatedText).toBe("较新的翻译");
+    });
   });
 });

@@ -131,7 +131,7 @@ export class RevisionEngine {
     }
 
     // 检查版本匹配
-    if (operation.type === "replace" && segment.translationVersion !== operation.expectedVersion) {
+    if (segment.translationVersion !== operation.expectedVersion) {
       return {
         success: false,
         reason: `版本不匹配：当前版本 ${segment.translationVersion}，期望版本 ${operation.expectedVersion}`,
