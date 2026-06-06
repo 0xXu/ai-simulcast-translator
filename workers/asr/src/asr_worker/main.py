@@ -2,9 +2,14 @@
 
 """ASR Worker 主入口"""
 
+from __future__ import annotations
+
 import argparse
 import sys
-from typing import TextIO
+from typing import TYPE_CHECKING, TextIO
+
+if TYPE_CHECKING:
+    from .engine import AsrEngine
 
 from .protocol import (
     AudioMessage,

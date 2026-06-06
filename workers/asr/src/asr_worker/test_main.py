@@ -146,6 +146,5 @@ class TestCreateEngine:
 
     def test_create_unknown_engine_raises(self):
         from .main import create_engine
-        import pytest
         with pytest.raises(ValueError, match="unknown engine"):
             create_engine("nonexistent")

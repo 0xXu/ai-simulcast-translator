@@ -1,5 +1,3 @@
-from typing import Any
-
 import numpy as np
 
 
@@ -19,8 +17,10 @@ class RollingAudioBuffer:
     def duration_ms(self) -> int:
         return min(self._max_duration_ms, self._samples.size * 1000 // self._sample_rate)
 
-    def append(self, samples: Any) -> None:
+    def append(self, samples: np.ndarray) -> None:
         incoming = np.asarray(samples, dtype=np.int16).reshape(-1)
+        if incoming.size == 0:
+            return
         if self._max_samples == 0:
             self._samples = np.array([], dtype=np.int16)
             return
