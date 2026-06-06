@@ -38,6 +38,7 @@ export class AsrSessionController {
   private readonly launch: WhisperWorkerLaunchOptions;
   private activeSessionId: string | null = null;
   private state: AsrSessionState = "idle";
+  private startupGeneration = 0;
 
   private readonly handleResult = (message: AsrMessage): void => {
     if (
@@ -107,6 +108,7 @@ export class AsrSessionController {
       return;
     }
 
+    this.startupGeneration += 1;
     this.activeSessionId = null;
     this.state = "idle";
     this.publish({
@@ -138,6 +140,7 @@ export class AsrSessionController {
 
     this.activeSessionId = sessionId;
     this.state = "starting";
+    const generation = ++this.startupGeneration;
     this.publish({
       type: "status",
       sessionId,
@@ -147,6 +150,10 @@ export class AsrSessionController {
 
     try {
       await this.worker.start(this.launch);
+      if (!this.isCurrentStartup(sessionId, generation)) {
+        return { sessionId, state: "idle" };
+      }
+
       this.state = "ready";
       this.publish({
         type: "status",
@@ -156,6 +163,10 @@ export class AsrSessionController {
       });
       return { sessionId, state: "ready" };
     } catch (error) {
+      if (!this.isCurrentStartup(sessionId, generation)) {
+        throw error;
+      }
+
       this.state = "error";
       this.publish({
         type: "error",
@@ -164,6 +175,7 @@ export class AsrSessionController {
         message: error instanceof Error ? error.message : "ASR Worker 启动失败",
         recoverable: true,
       });
+      this.startupGeneration += 1;
       this.activeSessionId = null;
       this.worker.stop();
       this.state = "idle";
@@ -192,6 +204,7 @@ export class AsrSessionController {
 
   stopSession(sessionId: string): AsrSessionResponse {
     if (sessionId === this.activeSessionId) {
+      this.startupGeneration += 1;
       this.activeSessionId = null;
       this.state = "idle";
       this.worker.stop();
@@ -204,8 +217,16 @@ export class AsrSessionController {
     this.worker.off("result", this.handleResult);
     this.worker.off("error", this.handleError);
     this.worker.off("exit", this.handleExit);
+    this.startupGeneration += 1;
     this.activeSessionId = null;
     this.state = "idle";
     this.worker.stop();
+  }
+
+  private isCurrentStartup(sessionId: string, generation: number): boolean {
+    return (
+      this.activeSessionId === sessionId &&
+      this.startupGeneration === generation
+    );
   }
 }

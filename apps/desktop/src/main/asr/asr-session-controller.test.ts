@@ -167,6 +167,95 @@ describe("AsrSessionController", () => {
     await starting;
   });
 
+  it("does not publish ready when a stopped startup later resolves", async () => {
+    let resolveStart: (() => void) | undefined;
+    worker.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+
+    const starting = controller.startSession("session-1");
+    controller.stopSession("session-1");
+    publish.mockClear();
+
+    resolveStart?.();
+    await expect(starting).resolves.toEqual({
+      sessionId: "session-1",
+      state: "idle",
+    });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("does not publish ready when a disposed startup later resolves", async () => {
+    let resolveStart: (() => void) | undefined;
+    worker.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+
+    const starting = controller.startSession("session-1");
+    controller.dispose();
+    publish.mockClear();
+
+    resolveStart?.();
+    await expect(starting).resolves.toEqual({
+      sessionId: "session-1",
+      state: "idle",
+    });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("does not let an old startup rejection clear or stop a newer session", async () => {
+    let rejectFirst: ((error: Error) => void) | undefined;
+    let resolveSecond: (() => void) | undefined;
+    worker.start
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+
+    const firstStart = controller.startSession("session-1");
+    controller.stopSession("session-1");
+    const secondStart = controller.startSession("session-2");
+    const stopCallsAfterRestart = worker.stop.mock.calls.length;
+    publish.mockClear();
+
+    rejectFirst?.(new Error("old startup failed"));
+    await expect(firstStart).rejects.toThrow("old startup failed");
+    expect(worker.stop).toHaveBeenCalledTimes(stopCallsAfterRestart);
+    expect(publish).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: "session-1",
+        code: "WORKER_START_FAILED",
+      }),
+    );
+
+    resolveSecond?.();
+    await expect(secondStart).resolves.toEqual({
+      sessionId: "session-2",
+      state: "ready",
+    });
+    controller.sendAudio(validAudioRequest("session-2"));
+    expect(worker.sendAudio).toHaveBeenCalledWith(
+      "session-2",
+      "YQ==",
+      16000,
+      1,
+    );
+  });
+
   it("maps active Worker results and drops stale results", async () => {
     await controller.startSession("session-1");
     publish.mockClear();
