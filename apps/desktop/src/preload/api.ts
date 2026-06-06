@@ -2,8 +2,8 @@
 
 import type {
   AppStatus,
-  CommandName,
-  FrontendToBackendCommands,
+  AsrEvent,
+  AsrSessionResponse,
 } from "@simulcast/contracts";
 
 /**
@@ -27,4 +27,23 @@ export interface PreloadApi {
       node: string;
     }>;
   }>;
+
+  readonly startAsrSession: (
+    sessionId: string,
+  ) => Promise<AsrSessionResponse>;
+
+  readonly sendAsrAudio: (
+    sessionId: string,
+    audio: Int16Array,
+    sampleRate?: 16000,
+    channels?: 1,
+  ) => void;
+
+  readonly stopAsrSession: (
+    sessionId: string,
+  ) => Promise<AsrSessionResponse>;
+
+  readonly onAsrEvent: (
+    listener: (event: AsrEvent) => void,
+  ) => () => void;
 }
