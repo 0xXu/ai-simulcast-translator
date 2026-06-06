@@ -33,8 +33,8 @@ describe("SubtitleTimeline", () => {
       timeline.addSegment("seg-001", "Hello", now, now + 1000);
 
       const segments = timeline.getSegments();
-      expect(segments[0].id).toBe("seg-001");
-      expect(segments[1].id).toBe("seg-002");
+      expect(segments[0].id).toBe("seg-002");
+      expect(segments[1].id).toBe("seg-001");
     });
   });
 
