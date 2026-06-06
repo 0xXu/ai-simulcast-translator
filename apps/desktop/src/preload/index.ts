@@ -2,7 +2,7 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import type { PreloadApi } from "./api";
-import type { AppStatus } from "@simulcast/contracts";
+import { PROTOCOL_VERSION, type AppStatus } from "@simulcast/contracts";
 
 const runtimeInfo = Object.freeze({
   platform: process.platform,
@@ -15,7 +15,10 @@ const runtimeInfo = Object.freeze({
 
 const api: PreloadApi = {
   async getAppStatus(): Promise<AppStatus> {
-    return ipcRenderer.invoke("app.status");
+    return ipcRenderer.invoke("app.status", {
+      protocolVersion: PROTOCOL_VERSION,
+      timestamp: Date.now(),
+    });
   },
 
   getRuntimeInfo() {
