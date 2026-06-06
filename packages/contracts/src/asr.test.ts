@@ -27,6 +27,20 @@ describe("ASR contracts", () => {
     expect(validateAsrSessionRequest(request).sessionId).toBe("session-1");
   });
 
+  it.each([1, 128])(
+    "accepts a sessionId with trimmed length %i",
+    (length) => {
+      const trimmedSessionId = "a".repeat(length);
+
+      expect(
+        AsrSessionRequestSchema.parse({
+          ...baseMessage,
+          sessionId: ` ${trimmedSessionId} `,
+        }).sessionId,
+      ).toBe(trimmedSessionId);
+    },
+  );
+
   it.each(["", "   ", "a".repeat(129)])(
     "rejects invalid sessionId %j",
     (sessionId) => {
