@@ -3,7 +3,12 @@ import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { isAllowedExternalUrl } from "./navigation-policy";
+
 type WindowKind = "control" | "overlay";
+
+let controlWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
 
 function getRendererUrl(windowKind: WindowKind): string {
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
@@ -17,6 +22,26 @@ function getRendererUrl(windowKind: WindowKind): string {
   const url = pathToFileURL(join(__dirname, "../renderer/index.html"));
   url.hash = windowKind;
   return url.toString();
+}
+
+function openExternalUrl(url: string): void {
+  void shell.openExternal(url).catch((error: unknown) => {
+    console.error("打开外部链接失败", { url, error });
+  });
+}
+
+function isCurrentPageNavigation(targetUrl: string, currentUrl: string): boolean {
+  try {
+    const target = new URL(targetUrl);
+    const current = new URL(currentUrl);
+
+    target.hash = "";
+    current.hash = "";
+
+    return target.href === current.href;
+  } catch {
+    return false;
+  }
 }
 
 function createWindow(
@@ -34,17 +59,55 @@ function createWindow(
   });
 
   window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    if (isAllowedExternalUrl(url)) {
+      openExternalUrl(url);
+    }
+
     return { action: "deny" };
   });
 
-  void window.loadURL(getRendererUrl(windowKind));
+  window.webContents.on("will-navigate", (event) => {
+    if (
+      !event.isMainFrame ||
+      isCurrentPageNavigation(event.url, window.webContents.getURL())
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (isAllowedExternalUrl(event.url)) {
+      openExternalUrl(event.url);
+    }
+  });
+
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL) => {
+      console.error("页面加载失败", {
+        errorCode,
+        errorDescription,
+        url: validatedURL,
+      });
+    },
+  );
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    console.error("渲染进程退出", {
+      reason: details.reason,
+      exitCode: details.exitCode,
+    });
+  });
+
+  void window.loadURL(getRendererUrl(windowKind)).catch((error: unknown) => {
+    console.error("加载渲染页面失败", { windowKind, error });
+  });
 
   return window;
 }
 
 function createControlWindow(): BrowserWindow {
-  return createWindow("control", {
+  const window = createWindow("control", {
     title: "AI 同声传译助手",
     width: 920,
     height: 720,
@@ -52,6 +115,20 @@ function createControlWindow(): BrowserWindow {
     minHeight: 620,
     backgroundColor: "#f4f7fb",
   });
+
+  window.on("close", () => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.close();
+    }
+  });
+
+  window.on("closed", () => {
+    if (controlWindow === window) {
+      controlWindow = null;
+    }
+  });
+
+  return window;
 }
 
 function createOverlayWindow(): BrowserWindow {
@@ -70,26 +147,65 @@ function createOverlayWindow(): BrowserWindow {
   window.setAlwaysOnTop(true, "floating");
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
+  window.on("closed", () => {
+    if (overlayWindow === window) {
+      overlayWindow = null;
+    }
+  });
+
   return window;
 }
 
-function createWindows(): void {
-  createControlWindow();
-  createOverlayWindow();
+function isWindowAvailable(window: BrowserWindow | null): window is BrowserWindow {
+  return window !== null && !window.isDestroyed();
 }
 
-app.whenReady().then(() => {
-  createWindows();
+function createApplicationWindows(): void {
+  if (!isWindowAvailable(controlWindow)) {
+    controlWindow = createControlWindow();
+  }
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindows();
+  if (!isWindowAvailable(overlayWindow)) {
+    overlayWindow = createOverlayWindow();
+  }
+}
+
+function showAndFocusControlWindow(): void {
+  createApplicationWindows();
+  controlWindow?.show();
+  controlWindow?.focus();
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (app.isReady()) {
+      showAndFocusControlWindow();
+      return;
+    }
+
+    void app.whenReady().then(showAndFocusControlWindow);
+  });
+
+  void app.whenReady().then(() => {
+    createApplicationWindows();
+
+    app.on("activate", () => {
+      if (!isWindowAvailable(controlWindow)) {
+        createApplicationWindows();
+      }
+
+      controlWindow?.show();
+      controlWindow?.focus();
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+}

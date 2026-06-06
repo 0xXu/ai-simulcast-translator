@@ -148,6 +148,7 @@ h1 {
   justify-content: flex-end;
   padding: 24px;
   background: transparent;
+  -webkit-app-region: drag;
 }
 
 .overlay-label {
