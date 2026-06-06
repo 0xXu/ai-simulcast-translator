@@ -1,4 +1,7 @@
-import { spawn, type ChildProcess } from "child_process";
+import {
+  spawn,
+  type ChildProcess,
+} from "child_process";
 import { EventEmitter } from "events";
 import { StringDecoder } from "string_decoder";
 
@@ -24,10 +27,21 @@ export interface WhisperWorkerLaunchOptions {
   readonly computeType: string;
 }
 
+export interface WhisperWorkerSpawnOptions {
+  readonly cwd: string;
+  readonly stdio: readonly ["pipe", "pipe", "pipe"];
+}
+
+export type WhisperWorkerSpawnProcess = (
+  command: string,
+  args: readonly string[],
+  options: WhisperWorkerSpawnOptions,
+) => ChildProcess;
+
 export interface WhisperWorkerAdapterOptions {
   readonly workerCwd: string;
   readonly startupTimeoutMs?: number;
-  readonly spawnProcess?: typeof spawn;
+  readonly spawnProcess?: WhisperWorkerSpawnProcess;
 }
 
 export class WhisperWorkerAdapter extends EventEmitter {
@@ -102,13 +116,12 @@ export class WhisperWorkerAdapter extends EventEmitter {
       console.error("ASR Worker stderr:", data.toString());
     });
 
+    child.stdin?.on("error", (error: Error) => {
+      this.handleProcessError(child, error);
+    });
+
     child.on("error", (error: Error) => {
-      if (this.process !== child) {
-        return;
-      }
-      this.clearProcess(child);
-      this.finishStartup(error);
-      this.emitError(error);
+      this.handleProcessError(child, error);
     });
 
     child.on("exit", (code: number | null) => {
@@ -233,6 +246,16 @@ export class WhisperWorkerAdapter extends EventEmitter {
       this.resetStdoutBuffer();
     }
     this.clearStartupTimer();
+  }
+
+  private handleProcessError(child: ChildProcess, error: Error): void {
+    if (this.process !== child) {
+      return;
+    }
+    this.clearProcess(child);
+    this.finishStartup(error);
+    child.kill();
+    this.emitError(error);
   }
 
   private finishStartup(error?: Error): void {
