@@ -2,6 +2,7 @@
 
 import { spawn, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
+import { StringDecoder } from "string_decoder";
 
 /**
  * ASR Worker 消息类型
@@ -28,6 +29,8 @@ export class WhisperWorkerAdapter extends EventEmitter {
   private process: ChildProcess | null = null;
   private isReady: boolean = false;
   private sequenceCounter: number = 0;
+  private stdoutBuffer: string = "";
+  private stdoutDecoder: StringDecoder = new StringDecoder("utf8");
 
   /**
    * 启动 Worker
@@ -44,10 +47,7 @@ export class WhisperWorkerAdapter extends EventEmitter {
       });
 
       this.process.stdout?.on("data", (data: Buffer) => {
-        const lines = data.toString().split("\n").filter(Boolean);
-        for (const line of lines) {
-          this._handleMessage(line);
-        }
+        this._handleStdoutChunk(data);
       });
 
       this.process.stderr?.on("data", (data: Buffer) => {
@@ -63,6 +63,7 @@ export class WhisperWorkerAdapter extends EventEmitter {
         this.emit("exit", code);
         this.process = null;
         this.isReady = false;
+        this.resetStdoutBuffer();
       });
 
       // 等待 ready 状态
@@ -88,6 +89,7 @@ export class WhisperWorkerAdapter extends EventEmitter {
       this.process = null;
       this.isReady = false;
     }
+    this.resetStdoutBuffer();
   }
 
   /**
@@ -116,6 +118,23 @@ export class WhisperWorkerAdapter extends EventEmitter {
    */
   getIsReady(): boolean {
     return this.isReady;
+  }
+
+  private _handleStdoutChunk(data: Buffer): void {
+    this.stdoutBuffer += this.stdoutDecoder.write(data);
+    const lines = this.stdoutBuffer.split("\n");
+    this.stdoutBuffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (line.trim()) {
+        this._handleMessage(line);
+      }
+    }
+  }
+
+  private resetStdoutBuffer(): void {
+    this.stdoutBuffer = "";
+    this.stdoutDecoder = new StringDecoder("utf8");
   }
 
   /**
