@@ -1,0 +1,143 @@
+import { describe, expect, expectTypeOf, it } from "vitest";
+import {
+  PROTOCOL_VERSION,
+  AsrAudioRequestSchema,
+  AsrSessionRequestSchema,
+  validateAsrAudioRequest,
+  validateAsrSessionRequest,
+  type AsrEvent,
+} from "./index";
+
+const baseMessage = {
+  protocolVersion: PROTOCOL_VERSION,
+  timestamp: 100,
+};
+
+describe("ASR contracts", () => {
+  it("accepts and trims a valid session request", () => {
+    const request = {
+      ...baseMessage,
+      sessionId: " session-1 ",
+    };
+
+    expect(AsrSessionRequestSchema.parse(request)).toEqual({
+      ...baseMessage,
+      sessionId: "session-1",
+    });
+    expect(validateAsrSessionRequest(request).sessionId).toBe("session-1");
+  });
+
+  it.each(["", "   ", "a".repeat(129)])(
+    "rejects invalid sessionId %j",
+    (sessionId) => {
+      expect(() =>
+        AsrSessionRequestSchema.parse({
+          ...baseMessage,
+          sessionId,
+        }),
+      ).toThrow();
+    },
+  );
+
+  it.each(["", "not base64!", "A", "AA=A"])(
+    "rejects invalid base64 audio data %j",
+    (audioData) => {
+      expect(() =>
+        AsrAudioRequestSchema.parse({
+          ...baseMessage,
+          sessionId: "session-1",
+          audioData,
+          sampleRate: 16_000,
+          channels: 1,
+        }),
+      ).toThrow();
+    },
+  );
+
+  it("rejects unsupported sample rates", () => {
+    expect(() =>
+      AsrAudioRequestSchema.parse({
+        ...baseMessage,
+        sessionId: "session-1",
+        audioData: "AQIDBA==",
+        sampleRate: 44_100,
+        channels: 1,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unsupported channel counts", () => {
+    expect(() =>
+      AsrAudioRequestSchema.parse({
+        ...baseMessage,
+        sessionId: "session-1",
+        audioData: "AQIDBA==",
+        sampleRate: 16_000,
+        channels: 2,
+      }),
+    ).toThrow();
+  });
+
+  it("accepts a valid audio request", () => {
+    const request = validateAsrAudioRequest({
+      ...baseMessage,
+      sessionId: "session-1",
+      audioData: "AQIDBA==",
+      sampleRate: 16_000,
+      channels: 1,
+    });
+
+    expect(request.sampleRate).toBe(16_000);
+    expect(request.channels).toBe(1);
+  });
+
+  it("rejects unknown request fields", () => {
+    expect(() =>
+      AsrSessionRequestSchema.parse({
+        ...baseMessage,
+        sessionId: "session-1",
+        unexpected: true,
+      }),
+    ).toThrow();
+  });
+
+  it("models transcript, status, and error events", () => {
+    const events: AsrEvent[] = [
+      {
+        type: "status",
+        sessionId: "session-1",
+        state: "ready",
+        message: null,
+      },
+      {
+        type: "transcript",
+        sessionId: "session-1",
+        sequence: 4,
+        text: "Hello world",
+        confidence: 0.9,
+        startMs: 0,
+        endMs: 1_200,
+        isFinal: false,
+      },
+      {
+        type: "error",
+        sessionId: "session-1",
+        code: "WORKER_EXITED",
+        message: "ASR Worker exited",
+        recoverable: true,
+      },
+    ];
+
+    expect(events.map((event) => event.type)).toEqual([
+      "status",
+      "transcript",
+      "error",
+    ]);
+
+    for (const event of events) {
+      if (event.type === "transcript") {
+        expectTypeOf(event.sequence).toEqualTypeOf<number>();
+      }
+    }
+  });
+});
