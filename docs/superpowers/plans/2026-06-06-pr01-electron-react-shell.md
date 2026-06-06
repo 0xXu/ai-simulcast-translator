@@ -6,7 +6,7 @@
 
 **Architecture:** 使用 pnpm workspace 管理桌面应用，Electron Main 只负责窗口生命周期，preload 暴露最小只读运行时信息，React Renderer 根据 URL hash 渲染控制窗口或字幕窗口。此 PR 使用静态演示字幕，不引入业务 IPC、音频、ASR、MiMo 或字幕领域逻辑。
 
-**Tech Stack:** Node.js 22、pnpm 11.5.2、Electron 42.3.3、electron-vite 5.0.0、React 19.2.7、TypeScript 6.0.3、Vitest 4.1.8、Testing Library。
+**Tech Stack:** Node.js 22、pnpm 11.5.2、Electron 42.3.3、electron-vite 5.0.0、Vite 7.3.5、React 19.2.7、TypeScript 6.0.3、Vitest 4.1.8、Testing Library。
 
 ---
 
@@ -186,15 +186,15 @@ git commit -m "工程：配置项目工作区与基础工具链"
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
-    "@types/node": "25.9.2",
+    "@types/node": "22.19.20",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-react": "5.1.4",
     "electron": "42.3.3",
     "electron-vite": "5.0.0",
-    "jsdom": "29.1.1",
+    "jsdom": "28.1.0",
     "typescript": "6.0.3",
-    "vite": "8.0.16",
+    "vite": "7.3.5",
     "vitest": "4.1.8"
   }
 }
