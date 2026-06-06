@@ -78,6 +78,11 @@ class FakeWorker extends EventEmitter implements AsrWorkerPort {
   }
 
   emitExit(code: number | null): void {
+    const reject = this.rejectPendingStart;
+    this.rejectPendingStart = null;
+    reject?.(
+      new Error(`ASR Worker exited before ready (code ${String(code)})`),
+    );
     this.emit("exit", code);
   }
 }
@@ -392,6 +397,31 @@ describe("AsrSessionController", () => {
           sessionId: "session-1",
           code: "WORKER_START_FAILED",
           message: "spawn failed",
+          recoverable: true,
+        },
+      ],
+    ]);
+  });
+
+  it("rejects and publishes one WORKER_EXITED when the Worker exits during startup", async () => {
+    worker.deferNextStart();
+    const starting = controller.startSession("session-1");
+    publish.mockClear();
+
+    worker.emitExit(2);
+
+    await expect(starting).rejects.toThrow(
+      "ASR Worker exited before ready (code 2)",
+    );
+    expect(
+      publish.mock.calls.filter(([event]) => event.type === "error"),
+    ).toEqual([
+      [
+        {
+          type: "error",
+          sessionId: "session-1",
+          code: "WORKER_EXITED",
+          message: "ASR Worker exited with code 2",
           recoverable: true,
         },
       ],

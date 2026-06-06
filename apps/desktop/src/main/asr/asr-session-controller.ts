@@ -13,6 +13,13 @@ import type {
 type AsrWorkerEvent = "result" | "error" | "exit";
 type AsrWorkerListener = (...args: any[]) => void;
 
+interface StartupContext {
+  readonly sessionId: string;
+  readonly generation: number;
+  canceled: boolean;
+  failurePublished: boolean;
+}
+
 export interface AsrWorkerPort {
   start(options: WhisperWorkerLaunchOptions): Promise<void>;
   stop(): void;
@@ -41,6 +48,7 @@ export class AsrSessionController {
   private state: AsrSessionState = "idle";
   private startupGeneration = 0;
   private startupPromise: Promise<AsrSessionResponse> | null = null;
+  private startupContext: StartupContext | null = null;
 
   private readonly handleResult = (message: AsrMessage): void => {
     if (
@@ -99,10 +107,14 @@ export class AsrSessionController {
       return;
     }
 
+    if (this.state === "starting" && this.startupContext) {
+      this.startupContext.failurePublished = true;
+    }
     this.startupGeneration += 1;
     this.activeSessionId = null;
     this.state = "idle";
     this.startupPromise = null;
+    this.startupContext = null;
     this.publish({
       type: "error",
       sessionId,
@@ -140,6 +152,13 @@ export class AsrSessionController {
     this.activeSessionId = sessionId;
     this.state = "starting";
     const generation = ++this.startupGeneration;
+    const context: StartupContext = {
+      sessionId,
+      generation,
+      canceled: false,
+      failurePublished: false,
+    };
+    this.startupContext = context;
     this.publish({
       type: "status",
       sessionId,
@@ -147,19 +166,22 @@ export class AsrSessionController {
       message: "正在启动本地语音识别",
     });
 
-    const startupPromise = this.runStartup(sessionId, generation);
+    const startupPromise = this.runStartup(context);
     this.startupPromise = startupPromise;
     return startupPromise;
   }
 
   private async runStartup(
-    sessionId: string,
-    generation: number,
+    context: StartupContext,
   ): Promise<AsrSessionResponse> {
+    const { sessionId, generation } = context;
     try {
       await this.worker.start(this.launch);
       if (!this.isCurrentStartup(sessionId, generation)) {
-        return { sessionId, state: "idle" };
+        if (context.canceled) {
+          return { sessionId, state: "idle" };
+        }
+        throw new Error("ASR Worker exited during startup");
       }
 
       this.state = "ready";
@@ -171,8 +193,14 @@ export class AsrSessionController {
       });
       return { sessionId, state: "ready" };
     } catch (error) {
-      if (!this.isCurrentStartup(sessionId, generation)) {
+      if (context.canceled) {
         return { sessionId, state: "idle" };
+      }
+      if (context.failurePublished) {
+        throw error;
+      }
+      if (!this.isCurrentStartup(sessionId, generation)) {
+        throw error;
       }
 
       this.state = "error";
@@ -184,6 +212,7 @@ export class AsrSessionController {
         recoverable: true,
       });
       this.startupPromise = null;
+      this.startupContext = null;
       this.startupGeneration += 1;
       this.activeSessionId = null;
       this.worker.stop();
@@ -192,6 +221,7 @@ export class AsrSessionController {
     } finally {
       if (this.isCurrentStartup(sessionId, generation)) {
         this.startupPromise = null;
+        this.startupContext = null;
       }
     }
   }
@@ -217,10 +247,14 @@ export class AsrSessionController {
 
   stopSession(sessionId: string): AsrSessionResponse {
     if (sessionId === this.activeSessionId) {
+      if (this.state === "starting" && this.startupContext) {
+        this.startupContext.canceled = true;
+      }
       this.startupGeneration += 1;
       this.activeSessionId = null;
       this.state = "idle";
       this.startupPromise = null;
+      this.startupContext = null;
       this.worker.stop();
     }
 
@@ -231,10 +265,14 @@ export class AsrSessionController {
     this.worker.off("result", this.handleResult);
     this.worker.off("error", this.handleError);
     this.worker.off("exit", this.handleExit);
+    if (this.state === "starting" && this.startupContext) {
+      this.startupContext.canceled = true;
+    }
     this.startupGeneration += 1;
     this.activeSessionId = null;
     this.state = "idle";
     this.startupPromise = null;
+    this.startupContext = null;
     this.worker.stop();
   }
 
