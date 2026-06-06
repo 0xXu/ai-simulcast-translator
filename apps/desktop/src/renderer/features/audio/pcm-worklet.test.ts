@@ -1,59 +1,31 @@
-// apps/desktop/src/renderer/features/audio/pcm-worklet.test.ts
+import { describe, expect, it } from "vitest";
+import { PcmChunker } from "./pcm-worklet.js";
 
-import { describe, it, expect } from "vitest";
+describe("PcmChunker", () => {
+  it("waits for 400 milliseconds of 16 kHz samples", () => {
+    const chunker = new PcmChunker(6400);
 
-describe("PcmProcessor", () => {
-  it("resamples audio data", () => {
-    // 模拟重采样逻辑
-    const resample = (data: Float32Array, fromRate: number, toRate: number): Float32Array => {
-      if (fromRate === toRate) {
-        return data;
-      }
+    expect(chunker.push(new Int16Array(6399))).toEqual([]);
 
-      const ratio = fromRate / toRate;
-      const newLength = Math.round(data.length / ratio);
-      const result = new Float32Array(newLength);
-
-      for (let i = 0; i < newLength; i++) {
-        const index = i * ratio;
-        const low = Math.floor(index);
-        const high = Math.ceil(index);
-        const fraction = index - low;
-
-        if (high >= data.length) {
-          result[i] = data[low] ?? 0;
-        } else {
-          result[i] = (data[low] ?? 0) * (1 - fraction) + (data[high] ?? 0) * fraction;
-        }
-      }
-
-      return result;
-    };
-
-    const input = new Float32Array([0, 0.5, 1, 0.5, 0]);
-    const result = resample(input, 44100, 16000);
-
-    expect(result.length).toBeLessThan(input.length);
+    const chunks = chunker.push(new Int16Array([123]));
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toHaveLength(6400);
+    expect(chunks[0]?.[6399]).toBe(123);
   });
 
-  it("converts to 16-bit PCM", () => {
-    const convertToPcm = (data: Float32Array): Int16Array => {
-      const pcm = new Int16Array(data.length);
+  it("emits multiple complete chunks and keeps the remainder", () => {
+    const chunker = new PcmChunker(4);
 
-      for (let i = 0; i < data.length; i++) {
-        const sample = Math.max(-1, Math.min(1, data[i] ?? 0));
-        pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-      }
+    const chunks = chunker.push(
+      new Int16Array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    );
 
-      return pcm;
-    };
-
-    const input = new Float32Array([0, 0.5, -0.5, 1, -1]);
-    const result = convertToPcm(input);
-
-    expect(result.length).toBe(input.length);
-    expect(result[0]).toBe(0);
-    expect(result[1]).toBeGreaterThan(0);
-    expect(result[2]).toBeLessThan(0);
+    expect(chunks.map((chunk) => [...chunk])).toEqual([
+      [1, 2, 3, 4],
+      [5, 6, 7, 8],
+    ]);
+    expect(chunker.push(new Int16Array([10, 11, 12]))[0]).toEqual(
+      new Int16Array([9, 10, 11, 12]),
+    );
   });
 });
