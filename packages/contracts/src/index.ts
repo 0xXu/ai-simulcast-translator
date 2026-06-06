@@ -1,4 +1,20 @@
 // packages/contracts/src/index.ts
-// 占位文件 - 将在后续 PR 中填充导出
 
-export {};
+export {
+  PROTOCOL_VERSION,
+  type ProtocolVersion,
+  type IpcMessage,
+  type AppStatus,
+  type FrontendToBackendCommands,
+  type BackendToFrontendEvents,
+  type CommandName,
+  type EventName,
+} from "./ipc";
+
+export {
+  ProtocolVersionSchema,
+  IpcMessageSchema,
+  AppStatusSchema,
+  validateIpcMessage,
+  safeValidateIpcMessage,
+} from "./schemas";
