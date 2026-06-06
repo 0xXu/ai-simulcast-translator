@@ -1,0 +1,4 @@
+// packages/contracts/src/index.ts
+// 占位文件 - 将在后续 PR 中填充导出
+
+export {};
