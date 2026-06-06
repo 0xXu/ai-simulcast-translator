@@ -1,1 +1,82 @@
-/.codegraph
+# Local code intelligence
+/.codegraph/
+/.worktrees/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node.js / Electron
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+dist/
+build/
+out/
+release/
+coverage/
+*.tsbuildinfo
+*.asar
+
+# Python / faster-whisper
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local model files and runtime data
+models/
+checkpoints/
+downloads/
+runtime/
+recordings/
+transcripts/
+*.bin
+*.gguf
+*.onnx
+*.safetensors
+
+# Logs and temporary files
+logs/
+*.log
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test and automation artifacts
+test-results/
+playwright-report/
+blob-report/
+screenshots/
+
+# Package manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
