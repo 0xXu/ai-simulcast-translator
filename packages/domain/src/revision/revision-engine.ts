@@ -1,7 +1,5 @@
 // packages/domain/src/revision/revision-engine.ts
 
-import type { SubtitleSegment } from "../subtitle/segment";
-import { updateTranslatedText, updateState } from "../subtitle/segment";
 import type { SubtitleTimeline } from "../subtitle/timeline";
 import type {
   RevisionRequest,
@@ -141,7 +139,7 @@ export class RevisionEngine {
     }
 
     // 应用操作
-    const updated = updateTranslatedText(segment, operation.translation);
+    const updated = timeline.updateTranslatedText(operation.segmentId, operation.translation);
     if (!updated) {
       return { success: false, reason: `更新片段 ${operation.segmentId} 失败` };
     }
