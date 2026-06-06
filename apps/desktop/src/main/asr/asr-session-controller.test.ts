@@ -24,10 +24,15 @@ const launch: WhisperWorkerLaunchOptions = {
 
 class FakeWorker extends EventEmitter implements AsrWorkerPort {
   ready = true;
+  private rejectPendingStart: ((error: Error) => void) | null = null;
   start = vi.fn<
     (options: WhisperWorkerLaunchOptions) => Promise<void>
   >(async (_options) => undefined);
-  stop = vi.fn();
+  stop = vi.fn(() => {
+    const reject = this.rejectPendingStart;
+    this.rejectPendingStart = null;
+    reject?.(new Error("ASR Worker stopped before ready"));
+  });
   sendAudio = vi.fn(
     (
       _sessionId: string,
@@ -37,6 +42,32 @@ class FakeWorker extends EventEmitter implements AsrWorkerPort {
     ) => undefined,
   );
   getIsReady = vi.fn(() => this.ready);
+
+  deferNextStart(): {
+    resolve: () => void;
+    reject: (error: Error) => void;
+  } {
+    let resolveStart: (() => void) | undefined;
+    let rejectStart: ((error: Error) => void) | undefined;
+    this.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          resolveStart = () => {
+            this.rejectPendingStart = null;
+            resolve();
+          };
+          rejectStart = (error) => {
+            this.rejectPendingStart = null;
+            reject(error);
+          };
+          this.rejectPendingStart = rejectStart;
+        }),
+    );
+    return {
+      resolve: () => resolveStart?.(),
+      reject: (error) => rejectStart?.(error),
+    };
+  }
 
   emitResult(message: AsrMessage): void {
     this.emit("result", message);
@@ -106,13 +137,7 @@ describe("AsrSessionController", () => {
   });
 
   it("reuses one startup promise for concurrent starts of the same session", async () => {
-    let resolveStart: (() => void) | undefined;
-    worker.start.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveStart = resolve;
-        }),
-    );
+    const deferred = worker.deferNextStart();
 
     const first = controller.startSession("session-1");
     const second = controller.startSession("session-1");
@@ -121,7 +146,7 @@ describe("AsrSessionController", () => {
     expect(worker.start).toHaveBeenCalledTimes(1);
     expect(publish).toHaveBeenCalledTimes(1);
 
-    resolveStart?.();
+    deferred.resolve();
     await expect(Promise.all([first, second])).resolves.toEqual([
       { sessionId: "session-1", state: "ready" },
       { sessionId: "session-1", state: "ready" },
@@ -129,19 +154,13 @@ describe("AsrSessionController", () => {
   });
 
   it("shares one failure across concurrent starts of the same session", async () => {
-    let rejectStart: ((error: Error) => void) | undefined;
-    worker.start.mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectStart = reject;
-        }),
-    );
+    const deferred = worker.deferNextStart();
 
     const first = controller.startSession("session-1");
     const second = controller.startSession("session-1");
     expect(second).toBe(first);
 
-    rejectStart?.(new Error("model load failed"));
+    deferred.reject(new Error("model load failed"));
     await expect(first).rejects.toThrow("model load failed");
     await expect(second).rejects.toThrow("model load failed");
     expect(worker.start).toHaveBeenCalledTimes(1);
@@ -197,36 +216,23 @@ describe("AsrSessionController", () => {
   });
 
   it("does not forward audio while the controller is starting", async () => {
-    let resolveStart: (() => void) | undefined;
-    worker.start.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveStart = resolve;
-        }),
-    );
+    const deferred = worker.deferNextStart();
 
     const starting = controller.startSession("session-1");
     expect(() => controller.sendAudio(validAudioRequest("session-1"))).toThrow(
       "ASR Worker 尚未就绪",
     );
-    resolveStart?.();
+    deferred.resolve();
     await starting;
   });
 
-  it("does not publish ready when a stopped startup later resolves", async () => {
-    let resolveStart: (() => void) | undefined;
-    worker.start.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveStart = resolve;
-        }),
-    );
+  it("resolves idle when stop rejects a pending startup", async () => {
+    worker.deferNextStart();
 
     const starting = controller.startSession("session-1");
     controller.stopSession("session-1");
     publish.mockClear();
 
-    resolveStart?.();
     await expect(starting).resolves.toEqual({
       sessionId: "session-1",
       state: "idle",
@@ -234,20 +240,13 @@ describe("AsrSessionController", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it("does not publish ready when a disposed startup later resolves", async () => {
-    let resolveStart: (() => void) | undefined;
-    worker.start.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveStart = resolve;
-        }),
-    );
+  it("resolves idle when dispose rejects a pending startup", async () => {
+    worker.deferNextStart();
 
     const starting = controller.startSession("session-1");
     controller.dispose();
     publish.mockClear();
 
-    resolveStart?.();
     await expect(starting).resolves.toEqual({
       sessionId: "session-1",
       state: "idle",
@@ -255,31 +254,20 @@ describe("AsrSessionController", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it("does not let an old startup rejection clear or stop a newer session", async () => {
-    let rejectFirst: ((error: Error) => void) | undefined;
-    let resolveSecond: (() => void) | undefined;
-    worker.start
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((_resolve, reject) => {
-            rejectFirst = reject;
-          }),
-      )
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveSecond = resolve;
-          }),
-      );
+  it("isolates a canceled startup rejection from a newer session", async () => {
+    worker.deferNextStart();
 
     const firstStart = controller.startSession("session-1");
     controller.stopSession("session-1");
+    const secondDeferred = worker.deferNextStart();
     const secondStart = controller.startSession("session-2");
     const stopCallsAfterRestart = worker.stop.mock.calls.length;
     publish.mockClear();
 
-    rejectFirst?.(new Error("old startup failed"));
-    await expect(firstStart).rejects.toThrow("old startup failed");
+    await expect(firstStart).resolves.toEqual({
+      sessionId: "session-1",
+      state: "idle",
+    });
     expect(worker.stop).toHaveBeenCalledTimes(stopCallsAfterRestart);
     expect(publish).not.toHaveBeenCalledWith(
       expect.objectContaining({
@@ -288,7 +276,7 @@ describe("AsrSessionController", () => {
       }),
     );
 
-    resolveSecond?.();
+    secondDeferred.resolve();
     await expect(secondStart).resolves.toEqual({
       sessionId: "session-2",
       state: "ready",
@@ -384,13 +372,7 @@ describe("AsrSessionController", () => {
   });
 
   it("publishes only the start failure when Adapter error and rejection coincide", async () => {
-    let rejectStart: ((error: Error) => void) | undefined;
-    worker.start.mockImplementationOnce(
-      () =>
-        new Promise<void>((_resolve, reject) => {
-          rejectStart = reject;
-        }),
-    );
+    const deferred = worker.deferNextStart();
 
     const starting = controller.startSession("session-1");
     worker.emitWorkerError({
@@ -398,7 +380,7 @@ describe("AsrSessionController", () => {
       errorCode: "WORKER_PROCESS_ERROR",
       message: "spawn failed",
     });
-    rejectStart?.(new Error("spawn failed"));
+    deferred.reject(new Error("spawn failed"));
 
     await expect(starting).rejects.toThrow("spawn failed");
     expect(

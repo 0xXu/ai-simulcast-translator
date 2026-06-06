@@ -172,7 +172,7 @@ export class AsrSessionController {
       return { sessionId, state: "ready" };
     } catch (error) {
       if (!this.isCurrentStartup(sessionId, generation)) {
-        throw error;
+        return { sessionId, state: "idle" };
       }
 
       this.state = "error";
