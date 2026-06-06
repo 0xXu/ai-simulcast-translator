@@ -19,3 +19,20 @@ export {
 export {
   SubtitleTimeline,
 } from "./subtitle/timeline";
+
+export {
+  type RevisionOperationType,
+  type RevisionOperation,
+  type RevisionRequest,
+  type RevisionResponse,
+  createUpsertOperation,
+  createReplaceOperation,
+  createRevisionRequest,
+  validateRevisionOperation,
+} from "./revision/operation";
+
+export {
+  type RevisionEngineConfig,
+  DEFAULT_REVISION_ENGINE_CONFIG,
+  RevisionEngine,
+} from "./revision/revision-engine";
