@@ -3,7 +3,10 @@ name = "asr-worker"
 version = "0.1.0"
 description = "AI 同声传译助手 ASR Worker"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "faster-whisper>=1.2.1,<2",
+    "numpy>=2,<3",
+]
 
 [project.optional-dependencies]
 dev = [
