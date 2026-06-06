@@ -23,6 +23,23 @@
 - 主分支可以启动；未接通的外部能力使用 Mock 或明确降级。
 - README 只记录已经验证可执行的命令。
 
+### 1.1 PR 01–06 审查后的修正顺序
+
+在继续叠加后续功能前，先通过以下小型 PR 修复已发现的契约和实现问题：
+
+| 修复 PR | 单一功能 | 验收结果 |
+|---|---|---|
+| FIX 01 | 修复 `app.status` IPC 请求封装 | preload 发送合法协议消息，真实 handler 调用成功 |
+| FIX 02 | 强化字幕 locked 状态与时间线 revision | locked 不可恢复或修改，自动锁定增加 revision |
+| FIX 03 | 对所有字幕修订操作执行版本校验 | 过期 `upsert` 和 `replace` 均不能覆盖新译文 |
+| FIX 04 | 接通 macOS 系统音频和控制窗口电平 | 使用 `getDisplayMedia` 捕获 loopback 音频并显示电平 |
+| FIX 05 | 将 PCM 聚合为 200–500 ms 数据块 | 默认每 400 ms 输出一个 16 kHz 单声道 PCM 块 |
+| FIX 06 | 修复 Worker stdout 逐行 JSON 分帧 | JSON 跨 chunk 或同 chunk 多行时都能正确解析 |
+| FIX 07 | 强化 Worker 消息校验和错误会话路由 | 非法字段返回 `INVALID_MESSAGE`，处理错误保留 sessionId |
+
+这些 PR 必须按表格顺序独立提交和验证。Worker 打包路径、内置 Python
+运行时和根 CI 聚合仍归 PR 13，不混入协议修复 PR。
+
 ## 2. PR 顺序总览
 
 | PR | 单一功能 | 依赖 | 合并后的可演示状态 |
@@ -31,7 +48,7 @@
 | 02 | 类型安全 IPC 契约 | PR 01 | 控制窗可通过 preload 查询应用状态 |
 | 03 | 字幕时间线领域模型 | PR 02 | Mock 字幕具有 live/revisable/locked 状态 |
 | 04 | 版本化字幕修订引擎 | PR 03 | 可演示旧响应被拒绝和字幕原位替换 |
-| 05 | macOS 系统音频采集 | PR 02 | 可显示系统音频输入电平 |
+| 05 | macOS 系统音频采集 | PR 02 | 可使用 loopback 音频并显示系统音频输入电平 |
 | 06 | Python ASR Worker 协议 | PR 02 | Mock Worker 可流式返回带时间戳原文 |
 | 07 | faster-whisper 识别适配器 | PR 05、06 | 播放英文音频时显示实时原文 |
 | 08 | 增量原文稳定与分段 | PR 07 | 原文不重复，稳定段和活动尾部可区分 |
@@ -147,6 +164,8 @@ git commit -m "功能：新增版本化字幕修订引擎"
 - Electron 使用系统提供的 CoreAudio Tap 捕获能力。
 - macOS 12 及以下显示“不支持直接采集”，文档提供 BlackHole 降级方案。
 - 捕获层只输出 PCM 和状态，不直接依赖 Whisper。
+- 禁止使用普通麦克风 `getUserMedia({ audio: true })` 冒充系统音频。
+- `bufferSize` 的单位为毫秒，默认 400 ms；AudioWorklet 不得按每个 render quantum 直接发送消息。
 
 **主要文件：**
 
