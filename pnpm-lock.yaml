@@ -82,6 +82,18 @@ importers:
         specifier: 4.1.8
         version: 4.1.8(@types/node@24.13.0)(jsdom@28.1.0)(vite@7.3.5(@types/node@24.13.0))
 
+  packages/infrastructure:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.20
+        version: 22.19.20
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.8
+        version: 4.1.8(@types/node@22.19.20)(jsdom@28.1.0)(vite@7.3.5(@types/node@22.19.20))
+
 packages:
 
   '@acemir/cssom@0.9.31':
@@ -1880,7 +1892,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 24.13.0
+      '@types/node': 22.19.20
     optional: true
 
   '@vitejs/plugin-react@5.1.4(vite@7.3.5(@types/node@22.19.20))':
