@@ -3,6 +3,7 @@
 import type { SubtitleSegment, SegmentState } from "./segment";
 import { createSegment, updateState } from "./segment";
 import {
+  shouldLockSegment,
   calculateSegmentsToLock,
   DEFAULT_REVISION_WINDOW,
   type RevisionWindowConfig,
