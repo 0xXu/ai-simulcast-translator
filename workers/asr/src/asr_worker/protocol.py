@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 import json
 
 
@@ -52,6 +52,40 @@ class StatusMessage:
     session_id: str
     status: str
     message: Optional[str] = None
+
+
+def _required(data: dict[str, Any], field: str) -> Any:
+    if field not in data:
+        raise ValueError(f"Missing required field: {field}")
+    return data[field]
+
+
+def _string(data: dict[str, Any], field: str) -> str:
+    value = _required(data, field)
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
+def _integer(data: dict[str, Any], field: str) -> int:
+    value = _required(data, field)
+    if type(value) is not int:
+        raise ValueError(f"{field} must be an integer")
+    return value
+
+
+def _number(data: dict[str, Any], field: str) -> float:
+    value = _required(data, field)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be a number")
+    return float(value)
+
+
+def _boolean(data: dict[str, Any], field: str) -> bool:
+    value = _required(data, field)
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be a boolean")
+    return value
 
 
 def serialize_message(message: AudioMessage | ResultMessage | ErrorMessage | StatusMessage) -> str:
@@ -104,44 +138,60 @@ def deserialize_message(json_str: str) -> AudioMessage | ResultMessage | ErrorMe
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON: {e}")
 
+    if not isinstance(data, dict):
+        raise ValueError("JSON message must be an object")
+
     message_type = data.get("type")
     if not message_type:
         raise ValueError("Missing 'type' field")
+    if not isinstance(message_type, str):
+        raise ValueError("type must be a string")
 
     try:
         msg_type = MessageType(message_type)
-    except ValueError:
-        raise ValueError(f"Unknown message type: {message_type}")
+    except ValueError as error:
+        raise ValueError(f"Unknown message type: {message_type}") from error
 
     if msg_type == MessageType.AUDIO:
+        sample_rate = data.get("sample_rate", 16000)
+        channels = data.get("channels", 1)
+        if type(sample_rate) is not int or sample_rate != 16000:
+            raise ValueError("sample_rate must be 16000")
+        if type(channels) is not int or channels != 1:
+            raise ValueError("channels must be 1")
+
         return AudioMessage(
-            session_id=data["session_id"],
-            sequence=data["sequence"],
-            audio_data=data["audio_data"],
-            sample_rate=data.get("sample_rate", 16000),
-            channels=data.get("channels", 1),
+            session_id=_string(data, "session_id"),
+            sequence=_integer(data, "sequence"),
+            audio_data=_string(data, "audio_data"),
+            sample_rate=sample_rate,
+            channels=channels,
         )
     elif msg_type == MessageType.RESULT:
         return ResultMessage(
-            session_id=data["session_id"],
-            sequence=data["sequence"],
-            text=data["text"],
-            confidence=data["confidence"],
-            start_ms=data["start_ms"],
-            end_ms=data["end_ms"],
-            is_final=data["is_final"],
+            session_id=_string(data, "session_id"),
+            sequence=_integer(data, "sequence"),
+            text=_string(data, "text"),
+            confidence=_number(data, "confidence"),
+            start_ms=_integer(data, "start_ms"),
+            end_ms=_integer(data, "end_ms"),
+            is_final=_boolean(data, "is_final"),
         )
     elif msg_type == MessageType.ERROR:
         return ErrorMessage(
-            session_id=data["session_id"],
-            error_code=data["error_code"],
-            error_message=data["error_message"],
+            session_id=_string(data, "session_id"),
+            error_code=_string(data, "error_code"),
+            error_message=_string(data, "error_message"),
         )
     elif msg_type == MessageType.STATUS:
+        message = data.get("message")
+        if message is not None and not isinstance(message, str):
+            raise ValueError("message must be a string")
+
         return StatusMessage(
-            session_id=data["session_id"],
-            status=data["status"],
-            message=data.get("message"),
+            session_id=_string(data, "session_id"),
+            status=_string(data, "status"),
+            message=message,
         )
     else:
         raise ValueError(f"Unhandled message type: {msg_type}")

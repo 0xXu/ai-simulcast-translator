@@ -120,6 +120,38 @@ class TestDeserializeMessage:
         with pytest.raises(ValueError, match="Unknown message type"):
             deserialize_message(json_str)
 
+    def test_deserialize_rejects_non_object_json(self):
+        with pytest.raises(ValueError, match="JSON message must be an object"):
+            deserialize_message("[]")
+
+    def test_deserialize_rejects_missing_audio_field(self):
+        json_str = (
+            '{"type": "audio", "session_id": "session-001", '
+            '"sequence": 1}'
+        )
+
+        with pytest.raises(ValueError, match="Missing required field: audio_data"):
+            deserialize_message(json_str)
+
+    def test_deserialize_rejects_invalid_audio_field_type(self):
+        json_str = (
+            '{"type": "audio", "session_id": "session-001", '
+            '"sequence": "1", "audio_data": "base64data"}'
+        )
+
+        with pytest.raises(ValueError, match="sequence must be an integer"):
+            deserialize_message(json_str)
+
+    def test_deserialize_rejects_unsupported_audio_configuration(self):
+        json_str = (
+            '{"type": "audio", "session_id": "session-001", '
+            '"sequence": 1, "audio_data": "base64data", '
+            '"sample_rate": 44100, "channels": 2}'
+        )
+
+        with pytest.raises(ValueError, match="sample_rate must be 16000"):
+            deserialize_message(json_str)
+
 
 class TestRoundTrip:
     """测试序列化/反序列化往返"""
