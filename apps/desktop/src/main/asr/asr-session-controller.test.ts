@@ -6,6 +6,7 @@ import {
 } from "@simulcast/contracts";
 import type {
   AsrMessage,
+  WhisperWorkerError,
   WhisperWorkerLaunchOptions,
 } from "@simulcast/infrastructure";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,7 +42,7 @@ class FakeWorker extends EventEmitter implements AsrWorkerPort {
     this.emit("result", message);
   }
 
-  emitWorkerError(error: Error | AsrMessage): void {
+  emitWorkerError(error: WhisperWorkerError): void {
     this.emit("error", error);
   }
 
@@ -102,6 +103,51 @@ describe("AsrSessionController", () => {
     await expect(controller.startSession("session-2")).rejects.toThrow(
       "已有 ASR 会话正在运行",
     );
+  });
+
+  it("reuses one startup promise for concurrent starts of the same session", async () => {
+    let resolveStart: (() => void) | undefined;
+    worker.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStart = resolve;
+        }),
+    );
+
+    const first = controller.startSession("session-1");
+    const second = controller.startSession("session-1");
+
+    expect(second).toBe(first);
+    expect(worker.start).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledTimes(1);
+
+    resolveStart?.();
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { sessionId: "session-1", state: "ready" },
+      { sessionId: "session-1", state: "ready" },
+    ]);
+  });
+
+  it("shares one failure across concurrent starts of the same session", async () => {
+    let rejectStart: ((error: Error) => void) | undefined;
+    worker.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+
+    const first = controller.startSession("session-1");
+    const second = controller.startSession("session-1");
+    expect(second).toBe(first);
+
+    rejectStart?.(new Error("model load failed"));
+    await expect(first).rejects.toThrow("model load failed");
+    await expect(second).rejects.toThrow("model load failed");
+    expect(worker.start).toHaveBeenCalledTimes(1);
+    expect(
+      publish.mock.calls.filter(([event]) => event.type === "error"),
+    ).toHaveLength(1);
   });
 
   it("cleans up a failed start and allows retry", async () => {
@@ -299,18 +345,16 @@ describe("AsrSessionController", () => {
     publish.mockClear();
 
     worker.emitWorkerError({
-      type: "error",
-      session_id: "session-2",
-      error_code: "PROCESSING_ERROR",
-      error_message: "stale",
+      sessionId: "session-2",
+      errorCode: "PROCESSING_ERROR",
+      message: "stale",
     });
     expect(publish).not.toHaveBeenCalled();
 
     worker.emitWorkerError({
-      type: "error",
-      session_id: "",
-      error_code: "PROCESSING_ERROR",
-      error_message: "bad audio",
+      sessionId: "",
+      errorCode: "PROCESSING_ERROR",
+      message: "bad audio",
     });
     expect(publish).toHaveBeenCalledWith({
       type: "error",
@@ -321,18 +365,55 @@ describe("AsrSessionController", () => {
     });
   });
 
-  it("publishes Error objects for the active session", async () => {
+  it("publishes structured runtime Worker errors for the active session", async () => {
     await controller.startSession("session-1");
     publish.mockClear();
 
-    worker.emitWorkerError(new Error("broken pipe"));
+    worker.emitWorkerError({
+      sessionId: "",
+      errorCode: "EPIPE",
+      message: "broken pipe",
+    });
     expect(publish).toHaveBeenCalledWith({
       type: "error",
       sessionId: "session-1",
-      code: "WORKER_ERROR",
+      code: "EPIPE",
       message: "broken pipe",
       recoverable: true,
     });
+  });
+
+  it("publishes only the start failure when Adapter error and rejection coincide", async () => {
+    let rejectStart: ((error: Error) => void) | undefined;
+    worker.start.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+
+    const starting = controller.startSession("session-1");
+    worker.emitWorkerError({
+      sessionId: "",
+      errorCode: "WORKER_PROCESS_ERROR",
+      message: "spawn failed",
+    });
+    rejectStart?.(new Error("spawn failed"));
+
+    await expect(starting).rejects.toThrow("spawn failed");
+    expect(
+      publish.mock.calls.filter(([event]) => event.type === "error"),
+    ).toEqual([
+      [
+        {
+          type: "error",
+          sessionId: "session-1",
+          code: "WORKER_START_FAILED",
+          message: "spawn failed",
+          recoverable: true,
+        },
+      ],
+    ]);
   });
 
   it("clears an exited session and permits restart", async () => {

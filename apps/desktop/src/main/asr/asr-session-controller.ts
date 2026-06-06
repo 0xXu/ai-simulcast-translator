@@ -6,6 +6,7 @@ import type {
 } from "@simulcast/contracts";
 import type {
   AsrMessage,
+  WhisperWorkerError,
   WhisperWorkerLaunchOptions,
 } from "@simulcast/infrastructure";
 
@@ -39,6 +40,7 @@ export class AsrSessionController {
   private activeSessionId: string | null = null;
   private state: AsrSessionState = "idle";
   private startupGeneration = 0;
+  private startupPromise: Promise<AsrSessionResponse> | null = null;
 
   private readonly handleResult = (message: AsrMessage): void => {
     if (
@@ -67,28 +69,17 @@ export class AsrSessionController {
     });
   };
 
-  private readonly handleError = (error: Error | AsrMessage): void => {
+  private readonly handleError = (error: WhisperWorkerError): void => {
     const sessionId = this.activeSessionId;
     if (!sessionId) {
       return;
     }
 
-    if (error instanceof Error) {
-      this.state = "error";
-      this.publish({
-        type: "error",
-        sessionId,
-        code: "WORKER_ERROR",
-        message: error.message,
-        recoverable: true,
-      });
+    if (this.state === "starting") {
       return;
     }
 
-    if (
-      error.type !== "error" ||
-      (error.session_id && error.session_id !== sessionId)
-    ) {
+    if (error.sessionId && error.sessionId !== sessionId) {
       return;
     }
 
@@ -96,8 +87,8 @@ export class AsrSessionController {
     this.publish({
       type: "error",
       sessionId,
-      code: error.error_code ?? "WORKER_ERROR",
-      message: error.error_message ?? "ASR Worker 处理失败",
+      code: error.errorCode,
+      message: error.message,
       recoverable: true,
     });
   };
@@ -111,6 +102,7 @@ export class AsrSessionController {
     this.startupGeneration += 1;
     this.activeSessionId = null;
     this.state = "idle";
+    this.startupPromise = null;
     this.publish({
       type: "error",
       sessionId,
@@ -130,12 +122,19 @@ export class AsrSessionController {
     this.worker.on("exit", this.handleExit);
   }
 
-  async startSession(sessionId: string): Promise<AsrSessionResponse> {
+  startSession(sessionId: string): Promise<AsrSessionResponse> {
     if (this.activeSessionId && this.activeSessionId !== sessionId) {
-      throw new Error("已有 ASR 会话正在运行");
+      return Promise.reject(new Error("已有 ASR 会话正在运行"));
     }
     if (this.activeSessionId === sessionId && this.state === "ready") {
-      return { sessionId, state: "ready" };
+      return Promise.resolve({ sessionId, state: "ready" });
+    }
+    if (
+      this.activeSessionId === sessionId &&
+      this.state === "starting" &&
+      this.startupPromise
+    ) {
+      return this.startupPromise;
     }
 
     this.activeSessionId = sessionId;
@@ -148,6 +147,15 @@ export class AsrSessionController {
       message: "正在启动本地语音识别",
     });
 
+    const startupPromise = this.runStartup(sessionId, generation);
+    this.startupPromise = startupPromise;
+    return startupPromise;
+  }
+
+  private async runStartup(
+    sessionId: string,
+    generation: number,
+  ): Promise<AsrSessionResponse> {
     try {
       await this.worker.start(this.launch);
       if (!this.isCurrentStartup(sessionId, generation)) {
@@ -175,11 +183,16 @@ export class AsrSessionController {
         message: error instanceof Error ? error.message : "ASR Worker 启动失败",
         recoverable: true,
       });
+      this.startupPromise = null;
       this.startupGeneration += 1;
       this.activeSessionId = null;
       this.worker.stop();
       this.state = "idle";
       throw error;
+    } finally {
+      if (this.isCurrentStartup(sessionId, generation)) {
+        this.startupPromise = null;
+      }
     }
   }
 
@@ -207,6 +220,7 @@ export class AsrSessionController {
       this.startupGeneration += 1;
       this.activeSessionId = null;
       this.state = "idle";
+      this.startupPromise = null;
       this.worker.stop();
     }
 
@@ -220,6 +234,7 @@ export class AsrSessionController {
     this.startupGeneration += 1;
     this.activeSessionId = null;
     this.state = "idle";
+    this.startupPromise = null;
     this.worker.stop();
   }
 

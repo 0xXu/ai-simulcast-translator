@@ -12,6 +12,7 @@ import {
 } from "vitest";
 import {
   WhisperWorkerAdapter,
+  type WhisperWorkerError,
   type WhisperWorkerLaunchOptions,
   type WhisperWorkerSpawnProcess,
 } from "./whisper-worker-adapter";
@@ -100,6 +101,21 @@ describe("WhisperWorkerAdapter", () => {
     expect(adapter.getIsReady()).toBe(true);
   });
 
+  it("emits a structured error when spawning throws synchronously", async () => {
+    const errorListener = vi.fn();
+    adapter.on("error", errorListener);
+    spawnProcess.mockImplementationOnce(() => {
+      throw new Error("uv not found");
+    });
+
+    await expect(adapter.start(launchOptions)).rejects.toThrow("uv not found");
+    expect(errorListener).toHaveBeenCalledWith({
+      sessionId: "",
+      errorCode: "WORKER_SPAWN_FAILED",
+      message: "uv not found",
+    });
+  });
+
   it("sends monotonically increasing audio sequences during one run", async () => {
     const process = await startReady();
     const writes: string[] = [];
@@ -184,7 +200,11 @@ describe("WhisperWorkerAdapter", () => {
     process.emit("error", failure);
     await expect(started).rejects.toThrow("spawn failed");
 
-    expect(errorListener).toHaveBeenCalledWith(failure);
+    expect(errorListener).toHaveBeenCalledWith({
+      sessionId: "",
+      errorCode: "WORKER_PROCESS_ERROR",
+      message: "spawn failed",
+    });
   });
 
   it("handles stdin EPIPE without an unhandled error and clears the Worker", async () => {
@@ -208,7 +228,11 @@ describe("WhisperWorkerAdapter", () => {
 
     process.stdin.emit("error", failure);
 
-    expect(errorListener).toHaveBeenCalledWith(failure);
+    expect(errorListener).toHaveBeenCalledWith({
+      sessionId: "",
+      errorCode: "EPIPE",
+      message: "write EPIPE",
+    });
     expect(process.kill).toHaveBeenCalledOnce();
     expect(adapter.getIsReady()).toBe(false);
   });
@@ -234,13 +258,17 @@ describe("WhisperWorkerAdapter", () => {
     const process = processes[0]!;
 
     process.stdout.write(
-      '{"type":"error","error_message":"Model failed to load"}\n',
+      '{"type":"error","session_id":"","error_code":"MODEL_LOAD_FAILED","error_message":"Model failed to load"}\n',
     );
 
     await expect(started).rejects.toThrow("Model failed to load");
     expect(process.kill).toHaveBeenCalledOnce();
     expect(errorListener).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Model failed to load" }),
+      {
+        sessionId: "",
+        errorCode: "MODEL_LOAD_FAILED",
+        message: "Model failed to load",
+      },
     );
 
     await vi.advanceTimersByTimeAsync(101);
@@ -323,11 +351,15 @@ describe("WhisperWorkerAdapter", () => {
     adapter.on("error", errorCallback);
 
     process.stdout.write(
-      '{"type":"error","error_message":"Invalid audio format"}\n',
+      '{"type":"error","session_id":"session-1","error_code":"INVALID_AUDIO","error_message":"Invalid audio format"}\n',
     );
 
     expect(errorCallback).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Invalid audio format" }),
+      {
+        sessionId: "session-1",
+        errorCode: "INVALID_AUDIO",
+        message: "Invalid audio format",
+      } satisfies WhisperWorkerError,
     );
   });
 

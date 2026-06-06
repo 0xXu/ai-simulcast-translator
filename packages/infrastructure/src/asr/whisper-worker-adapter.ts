@@ -27,6 +27,12 @@ export interface WhisperWorkerLaunchOptions {
   readonly computeType: string;
 }
 
+export interface WhisperWorkerError {
+  readonly sessionId: string;
+  readonly errorCode: string;
+  readonly message: string;
+}
+
 export interface WhisperWorkerSpawnOptions {
   readonly cwd: string;
   readonly stdio: readonly ["pipe", "pipe", "pipe"];
@@ -100,7 +106,11 @@ export class WhisperWorkerAdapter extends EventEmitter {
     } catch (error) {
       const spawnError = error instanceof Error ? error : new Error(String(error));
       this.finishStartup(spawnError);
-      this.emitError(spawnError);
+      this.emitError({
+        sessionId: "",
+        errorCode: "WORKER_SPAWN_FAILED",
+        message: spawnError.message,
+      });
       return this.startupPromise;
     }
 
@@ -223,19 +233,27 @@ export class WhisperWorkerAdapter extends EventEmitter {
       } else if (message.type === "result") {
         this.emit("result", message);
       } else if (message.type === "error") {
-        const error = new Error(message.error_message || "Unknown error");
+        const workerError: WhisperWorkerError = {
+          sessionId: message.session_id ?? "",
+          errorCode: message.error_code ?? "WORKER_ERROR",
+          message: message.error_message ?? "Unknown error",
+        };
         if (this.rejectStartup) {
           const child = this.process;
           if (child) {
             this.clearProcess(child);
           }
-          this.finishStartup(error);
+          this.finishStartup(new Error(workerError.message));
           child?.kill();
         }
-        this.emitError(error);
+        this.emitError(workerError);
       }
     } catch {
-      this.emitError(new Error(`Failed to parse message: ${line}`));
+      this.emitError({
+        sessionId: "",
+        errorCode: "WORKER_PROTOCOL_ERROR",
+        message: `Failed to parse message: ${line}`,
+      });
     }
   }
 
@@ -255,7 +273,11 @@ export class WhisperWorkerAdapter extends EventEmitter {
     this.clearProcess(child);
     this.finishStartup(error);
     child.kill();
-    this.emitError(error);
+    this.emitError({
+      sessionId: "",
+      errorCode: getSystemErrorCode(error),
+      message: error.message,
+    });
   }
 
   private finishStartup(error?: Error): void {
@@ -279,9 +301,14 @@ export class WhisperWorkerAdapter extends EventEmitter {
     }
   }
 
-  private emitError(error: Error): void {
+  private emitError(error: WhisperWorkerError): void {
     if (this.listenerCount("error") > 0) {
       this.emit("error", error);
     }
   }
+}
+
+function getSystemErrorCode(error: Error): string {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code && code.length > 0 ? code : "WORKER_PROCESS_ERROR";
 }

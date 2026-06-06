@@ -3,6 +3,7 @@
 export {
   WhisperWorkerAdapter,
   type AsrMessage,
+  type WhisperWorkerError,
   type WhisperWorkerAdapterOptions,
   type WhisperWorkerLaunchOptions,
   type WhisperWorkerSpawnProcess,
