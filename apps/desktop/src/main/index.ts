@@ -122,11 +122,11 @@ function createWindow(
 function createControlWindow(x?: number, y?: number): BrowserWindow {
   const window = createWindow("control", {
     title: "AI 同声传译助手",
-    width: 920,
-    height: 720,
-    minWidth: 760,
-    minHeight: 620,
-    backgroundColor: "#f4f7fb",
+    width: 680,
+    height: 480,
+    minWidth: 560,
+    minHeight: 440,
+    backgroundColor: "#f5f5f7",
     ...(x !== undefined && y !== undefined ? { x, y } : {}),
   });
 
@@ -195,8 +195,8 @@ function createApplicationWindows(): void {
   const overlayY = screenHeight - OVERLAY_HEIGHT - BOTTOM_MARGIN;
 
   // Control window: horizontally centered, sitting just above the overlay
-  const controlWidth = 920;
-  const controlHeight = 720;
+  const controlWidth = 680;
+  const controlHeight = 480;
   const controlX = Math.round((screenWidth - controlWidth) / 2);
   const controlY = Math.max(0, overlayY - GAP - controlHeight);
 

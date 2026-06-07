@@ -338,80 +338,69 @@ function ControlWindow({
         </p>
       </header>
 
-      <section className="status-card" aria-label="运行状态">
-        <div>
-          <span
-            className={`status-dot status-${audioStatus.state}`}
-            aria-hidden="true"
-          />
-          <strong>{statusTitle}</strong>
+      <section className="status-dashboard" aria-label="运行与识别状态">
+        <div className="status-item" data-status={audioStatus.state}>
+          <span className="status-name">系统音频</span>
+          <div className="status-indicator">
+            <span className={`status-dot status-${audioStatus.state}`} aria-hidden="true" />
+            <span className="status-title">{statusTitle}</span>
+          </div>
+          <p className="status-detail">{statusDetail}</p>
         </div>
-        <p>{statusDetail}</p>
-      </section>
 
-      <section className="status-card status-card-secondary" aria-label="识别状态">
-        <div>
-          <span
-            className={`status-dot status-${asrStatus.state}`}
-            aria-hidden="true"
-          />
-          <strong>{asrStatusTitle}</strong>
+        <div className="status-item" data-status={asrStatus.state}>
+          <span className="status-name">本地识别</span>
+          <div className="status-indicator">
+            <span className={`status-dot status-${asrStatus.state}`} aria-hidden="true" />
+            <span className="status-title">{asrStatusTitle}</span>
+          </div>
+          <p className="status-detail">{asrStatusDetail}</p>
         </div>
-        <p>{asrStatusDetail}</p>
-      </section>
-
-      <section className="capability-grid" aria-label="核心能力">
-        <article>
-          <span>01</span>
-          <h2>本地识别</h2>
-          <p>使用 faster-whisper 在设备上处理原始音频。</p>
-        </article>
-        <article>
-          <span>02</span>
-          <h2>上下文翻译</h2>
-          <p>MiMo 保留最近 5 句或 20 秒语义上下文。</p>
-        </article>
-        <article>
-          <span>03</span>
-          <h2>回溯修订</h2>
-          <p>后文消除歧义时，字幕会在原位置自动收敛。</p>
-        </article>
       </section>
 
       <section className="language-panel" aria-label="翻译语言">
-        <label>
+        <label className="language-field">
           <span>源语言</span>
-          <input
-            aria-label="源语言"
-            list="source-language-options"
-            value={sourceLanguageInput}
-            disabled={languageControlsDisabled}
-            onChange={(event) => setSourceLanguageInput(event.target.value)}
-          />
-          <datalist id="source-language-options">
-            <option value={AUTO_LANGUAGE_OPTION.label} />
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.code} value={option.label} />
-            ))}
-          </datalist>
+          <div className="select-wrapper">
+            <select
+              aria-label="源语言"
+              value={sourceLanguageInput}
+              disabled={languageControlsDisabled}
+              onChange={(event) => setSourceLanguageInput(event.target.value)}
+            >
+              <option value={AUTO_LANGUAGE_OPTION.label}>
+                {AUTO_LANGUAGE_OPTION.label}
+              </option>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.code} value={option.label}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </label>
+
         <span className="language-arrow" aria-hidden="true">→</span>
-        <label>
+
+        <label className="language-field">
           <span>目标语言</span>
-          <input
-            aria-label="目标语言"
-            list="target-language-options"
-            value={targetLanguageInput}
-            disabled={languageControlsDisabled}
-            onChange={(event) => setTargetLanguageInput(event.target.value)}
-          />
-          <datalist id="target-language-options">
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.code} value={option.label} />
-            ))}
-          </datalist>
+          <div className="select-wrapper">
+            <select
+              aria-label="目标语言"
+              value={targetLanguageInput}
+              disabled={languageControlsDisabled}
+              onChange={(event) => setTargetLanguageInput(event.target.value)}
+            >
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.code} value={option.label}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </label>
-        <p>
+
+        <p className="language-preview">
           {selectedSourceLanguage === "auto"
             ? detectedLanguage
               ? `自动检测（${getLanguageOption(detectedLanguage)?.label ?? detectedLanguage}）`
@@ -427,7 +416,7 @@ function ControlWindow({
       </section>
 
       <button
-        className="primary-action"
+        className={`primary-action ${isCapturing ? "is-capturing" : ""}`}
         type="button"
         disabled={isRequesting || !languageSelectionValid}
         onClick={() => void toggleCapture()}
