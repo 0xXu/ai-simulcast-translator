@@ -15,6 +15,7 @@
   "dependencies": {
     "@simulcast/application": "workspace:*",
     "@simulcast/contracts": "workspace:*",
+    "@simulcast/domain": "workspace:*",
     "@simulcast/infrastructure": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7"

@@ -46,3 +46,17 @@ export {
   validateAsrSessionRequest,
   validateAsrAudioRequest,
 } from "./asr-schemas";
+
+export {
+  type SubtitleSegmentState,
+  type SubtitleSnapshotSegment,
+  type SubtitleSnapshotChange,
+  type SubtitleSnapshotEvent,
+} from "./subtitle";
+
+export {
+  SubtitleSnapshotSegmentSchema,
+  SubtitleSnapshotChangeSchema,
+  SubtitleSnapshotEventSchema,
+  validateSubtitleSnapshotEvent,
+} from "./subtitle-schemas";

@@ -8,6 +8,7 @@ import {
   type AsrAudioRequest,
   type AsrEvent,
   type AsrSessionRequest,
+  type SubtitleSnapshotEvent,
 } from "@simulcast/contracts";
 
 const ASR_CHANNELS = Object.freeze({
@@ -15,6 +16,10 @@ const ASR_CHANNELS = Object.freeze({
   audio: "asr.audio",
   stop: "asr.session.stop",
   event: "asr.event",
+} as const);
+
+const SUBTITLE_CHANNELS = Object.freeze({
+  snapshot: "subtitle.snapshot",
 } as const);
 
 function createSessionRequest(sessionId: string): AsrSessionRequest {
@@ -102,6 +107,19 @@ const api: PreloadApi = {
     ipcRenderer.on(ASR_CHANNELS.event, handleEvent);
     return () => {
       ipcRenderer.removeListener(ASR_CHANNELS.event, handleEvent);
+    };
+  },
+
+  onSubtitleSnapshot(listener) {
+    const handleEvent = (
+      _event: unknown,
+      event: SubtitleSnapshotEvent,
+    ): void => {
+      listener(event);
+    };
+    ipcRenderer.on(SUBTITLE_CHANNELS.snapshot, handleEvent);
+    return () => {
+      ipcRenderer.removeListener(SUBTITLE_CHANNELS.snapshot, handleEvent);
     };
   },
 };

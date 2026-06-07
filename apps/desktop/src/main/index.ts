@@ -16,6 +16,11 @@ import {
   resolveAsrLaunchOptions,
 } from "./asr/register-asr-handlers";
 import { resolveAsrWorkerCwd } from "./asr/resolve-worker-cwd";
+import {
+  SubtitleSessionBridge,
+  publishSubtitleSnapshotToWindows,
+} from "./subtitle/subtitle-session-bridge";
+import { createTranslatorFromEnv } from "./subtitle/translator-factory";
 
 let controlWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -209,18 +214,28 @@ if (!hasSingleInstanceLock) {
           ...(workerDirOverride ? { override: workerDirOverride } : {}),
         }),
       });
+      const subtitleBridge = new SubtitleSessionBridge({
+        translator: createTranslatorFromEnv(process.env),
+        publish: (event) => {
+          publishSubtitleSnapshotToWindows(BrowserWindow.getAllWindows(), event);
+        },
+      });
       const controller = new AsrSessionController({
         worker,
         publish: (event) => {
           publishAsrEventToWindows(BrowserWindow.getAllWindows(), event);
+          void subtitleBridge.handleAsrEvent(event).catch((error: unknown) => {
+            console.error("字幕事件处理失败", error);
+          });
         },
         launch: resolveAsrLaunchOptions(process.env),
       });
       const unregisterAsr = registerAsrHandlers(controller);
-      app.once(
-        "before-quit",
-        createAsrCleanup(controller, unregisterAsr),
-      );
+      const cleanupAsr = createAsrCleanup(controller, unregisterAsr);
+      app.once("before-quit", () => {
+        subtitleBridge.dispose();
+        cleanupAsr();
+      });
       createApplicationWindows();
 
       app.on("activate", () => {

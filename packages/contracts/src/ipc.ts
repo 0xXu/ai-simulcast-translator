@@ -1,5 +1,7 @@
 // packages/contracts/src/ipc.ts
 
+import type { SubtitleSnapshotEvent } from "./subtitle";
+
 /**
  * 协议版本号
  */
@@ -42,6 +44,7 @@ export interface BackendToFrontendEvents {
   readonly "app.ready": {
     readonly timestamp: number;
   };
+  readonly "subtitle.snapshot": SubtitleSnapshotEvent;
 }
 
 /**

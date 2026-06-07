@@ -4,6 +4,7 @@ import type {
   AppStatus,
   AsrEvent,
   AsrSessionResponse,
+  SubtitleSnapshotEvent,
 } from "@simulcast/contracts";
 
 /**
@@ -45,5 +46,9 @@ export interface PreloadApi {
 
   readonly onAsrEvent: (
     listener: (event: AsrEvent) => void,
+  ) => () => void;
+
+  readonly onSubtitleSnapshot: (
+    listener: (event: SubtitleSnapshotEvent) => void,
   ) => () => void;
 }

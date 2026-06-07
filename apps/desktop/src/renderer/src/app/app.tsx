@@ -1,8 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import type { AudioCaptureStatus } from "@simulcast/contracts";
+import type {
+  AudioCaptureStatus,
+  AsrSessionResponse,
+  SubtitleSnapshotEvent,
+} from "@simulcast/contracts";
 import { AudioCapture } from "../../features/audio/audio-capture";
 import { demoSubtitles } from "./demo-subtitles";
 import { SubtitleLine } from "../../features/subtitles/subtitle-line";
+import {
+  SubtitleStore,
+  type SubtitleLineView,
+  type SubtitleStoreSegment,
+} from "../../entities/subtitle/subtitle-store";
 import "./styles.css";
 
 export type WindowKind = "control" | "overlay";
@@ -11,13 +20,32 @@ export interface AudioCaptureController {
   setOnStatusChange(
     callback: (status: AudioCaptureStatus) => void,
   ): void;
+  setOnPcmData(callback: (data: Int16Array) => void): void;
   start(): Promise<void>;
   stop(): void;
 }
 
+export interface AsrSessionClient {
+  readonly startSession: (
+    sessionId: string,
+  ) => Promise<AsrSessionResponse>;
+  readonly sendAudio: (sessionId: string, audio: Int16Array) => void;
+  readonly stopSession: (
+    sessionId: string,
+  ) => Promise<AsrSessionResponse>;
+}
+
+export type SubtitleSnapshotSubscriber = (
+  listener: (event: SubtitleSnapshotEvent) => void,
+) => () => void;
+
 interface AppProps {
   windowKind: WindowKind;
   createAudioCapture?: () => AudioCaptureController;
+  asrClient?: AsrSessionClient;
+  createSessionId?: () => string;
+  subscribeToSubtitleSnapshots?: SubtitleSnapshotSubscriber;
+  now?: () => number;
 }
 
 const initialAudioStatus: AudioCaptureStatus = {
@@ -30,24 +58,117 @@ function createDefaultAudioCapture(): AudioCaptureController {
   return new AudioCapture();
 }
 
+const noopAsrSessionClient: AsrSessionClient = {
+  async startSession(sessionId) {
+    return { sessionId, state: "ready" };
+  },
+  sendAudio() {
+    return undefined;
+  },
+  async stopSession(sessionId) {
+    return { sessionId, state: "idle" };
+  },
+};
+
+function createDefaultAsrSessionClient(): AsrSessionClient {
+  if (typeof window === "undefined" || !window.api) {
+    return noopAsrSessionClient;
+  }
+
+  return {
+    startSession: window.api.startAsrSession,
+    sendAudio: window.api.sendAsrAudio,
+    stopSession: window.api.stopAsrSession,
+  };
+}
+
+function createDefaultSessionId(): string {
+  return `session-${Date.now()}`;
+}
+
+function createDefaultSubtitleSnapshotSubscriber(
+  listener: (event: SubtitleSnapshotEvent) => void,
+): () => void {
+  if (
+    typeof window === "undefined" ||
+    typeof window.api?.onSubtitleSnapshot !== "function"
+  ) {
+    return () => undefined;
+  }
+
+  return window.api.onSubtitleSnapshot(listener);
+}
+
+function toSubtitleStoreSegment(
+  segment: SubtitleSnapshotEvent["segments"][number],
+): SubtitleStoreSegment {
+  return {
+    id: segment.id,
+    sequence: segment.sequence,
+    sourceText: segment.sourceText,
+    translatedText: segment.translatedText,
+    state: segment.state,
+  };
+}
+
+function createDemoSubtitleLines(): readonly SubtitleLineView[] {
+  return demoSubtitles.slice(-3).map((subtitle, index) => ({
+    id: subtitle.id,
+    sequence: index + 1,
+    sourceText: subtitle.sourceText,
+    translatedText: subtitle.translatedText,
+    state: subtitle.state,
+    highlighted: subtitle.highlighted ?? false,
+    revisionReason: subtitle.revisionReason ?? null,
+  }));
+}
+
 function ControlWindow({
   createAudioCapture,
+  asrClient,
+  createSessionId,
 }: {
   createAudioCapture: () => AudioCaptureController;
+  asrClient: AsrSessionClient;
+  createSessionId: () => string;
 }) {
   const captureRef = useRef<AudioCaptureController | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
   const [audioStatus, setAudioStatus] =
     useState<AudioCaptureStatus>(initialAudioStatus);
 
   if (!captureRef.current) {
     captureRef.current = createAudioCapture();
     captureRef.current.setOnStatusChange(setAudioStatus);
+    captureRef.current.setOnPcmData((pcmData) => {
+      const sessionId = activeSessionIdRef.current;
+      if (!sessionId) {
+        return;
+      }
+
+      try {
+        asrClient.sendAudio(sessionId, pcmData);
+      } catch (error) {
+        setAudioStatus({
+          state: "error",
+          level: null,
+          error: error instanceof Error ? error.message : "ASR 音频发送失败",
+        });
+      }
+    });
   }
 
   useEffect(() => {
     const capture = captureRef.current;
-    return () => capture?.stop();
-  }, []);
+    return () => {
+      const sessionId = activeSessionIdRef.current;
+      activeSessionIdRef.current = null;
+      capture?.stop();
+      if (sessionId) {
+        void asrClient.stopSession(sessionId);
+      }
+    };
+  }, [asrClient]);
 
   const isCapturing = audioStatus.state === "capturing";
   const isRequesting = audioStatus.state === "requesting";
@@ -70,13 +191,25 @@ function ControlWindow({
     }
 
     if (isCapturing) {
+      const sessionId = activeSessionIdRef.current;
+      activeSessionIdRef.current = null;
       capture.stop();
+      if (sessionId) {
+        await asrClient.stopSession(sessionId);
+      }
       return;
     }
 
+    const sessionId = createSessionId();
+    activeSessionIdRef.current = sessionId;
+    setAudioStatus({ state: "requesting", level: null, error: null });
+
     try {
+      await asrClient.startSession(sessionId);
       await capture.start();
     } catch (error) {
+      activeSessionIdRef.current = null;
+      void asrClient.stopSession(sessionId);
       setAudioStatus({
         state: "error",
         level: null,
@@ -139,16 +272,32 @@ function ControlWindow({
   );
 }
 
-function OverlayWindow() {
-  const subtitles = demoSubtitles.slice(-3).map((subtitle, index) => ({
-    id: subtitle.id,
-    sequence: index + 1,
-    sourceText: subtitle.sourceText,
-    translatedText: subtitle.translatedText,
-    state: subtitle.state,
-    highlighted: subtitle.highlighted ?? false,
-    revisionReason: subtitle.revisionReason ?? null,
-  }));
+function OverlayWindow({
+  now,
+  subscribeToSubtitleSnapshots,
+}: {
+  now: () => number;
+  subscribeToSubtitleSnapshots: SubtitleSnapshotSubscriber;
+}) {
+  const storeRef = useRef<SubtitleStore | null>(null);
+  const [subtitles, setSubtitles] = useState(createDemoSubtitleLines);
+
+  if (!storeRef.current) {
+    storeRef.current = new SubtitleStore();
+  }
+
+  useEffect(() => {
+    return subscribeToSubtitleSnapshots((event) => {
+      const store = storeRef.current;
+      if (!store) {
+        return;
+      }
+
+      store.replaceSegments(event.segments.map(toSubtitleStoreSegment));
+      store.applyChanges(event.changes);
+      setSubtitles(store.getVisibleLines({ nowMs: now(), maxLines: 3 }));
+    });
+  }, [now, subscribeToSubtitleSnapshots]);
 
   if (subtitles.length === 0) {
     return null;
@@ -169,8 +318,23 @@ function OverlayWindow() {
 export function App({
   windowKind,
   createAudioCapture = createDefaultAudioCapture,
+  asrClient = createDefaultAsrSessionClient(),
+  createSessionId = createDefaultSessionId,
+  subscribeToSubtitleSnapshots = createDefaultSubtitleSnapshotSubscriber,
+  now = Date.now,
 }: AppProps) {
   return windowKind === "overlay"
-    ? <OverlayWindow />
-    : <ControlWindow createAudioCapture={createAudioCapture} />;
+    ? (
+      <OverlayWindow
+        now={now}
+        subscribeToSubtitleSnapshots={subscribeToSubtitleSnapshots}
+      />
+    )
+    : (
+      <ControlWindow
+        createAudioCapture={createAudioCapture}
+        asrClient={asrClient}
+        createSessionId={createSessionId}
+      />
+    );
 }

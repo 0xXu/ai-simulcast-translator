@@ -4,6 +4,7 @@ import {
   PROTOCOL_VERSION,
   type AppStatus,
   type AsrEvent,
+  type SubtitleSnapshotEvent,
 } from "@simulcast/contracts";
 import type { PreloadApi } from "./api";
 
@@ -171,5 +172,36 @@ describe("preload API", () => {
     expect(on).toHaveBeenCalledWith("asr.event", ipcListener);
     expect(listener).toHaveBeenCalledWith(payload);
     expect(removeListener).toHaveBeenCalledWith("asr.event", ipcListener);
+  });
+
+  it("subscribes to subtitle snapshots and removes the exact listener", async () => {
+    await import("./index");
+    const api = exposeInMainWorld.mock.calls.find(
+      ([key]) => key === "api",
+    )?.[1] as PreloadApi;
+    const listener = vi.fn<(event: SubtitleSnapshotEvent) => void>();
+    const cleanup = api.onSubtitleSnapshot(listener);
+    const ipcListener = on.mock.calls[0]![1] as (
+      event: unknown,
+      payload: SubtitleSnapshotEvent,
+    ) => void;
+    const payload: SubtitleSnapshotEvent = {
+      type: "snapshot",
+      sessionId: "session-1",
+      requestId: 1,
+      lastAppliedRequestId: 1,
+      segments: [],
+      changes: [],
+    };
+
+    ipcListener({}, payload);
+    cleanup();
+
+    expect(on).toHaveBeenCalledWith("subtitle.snapshot", ipcListener);
+    expect(listener).toHaveBeenCalledWith(payload);
+    expect(removeListener).toHaveBeenCalledWith(
+      "subtitle.snapshot",
+      ipcListener,
+    );
   });
 });

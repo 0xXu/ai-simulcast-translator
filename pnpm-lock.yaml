@@ -16,6 +16,9 @@ importers:
       '@simulcast/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@simulcast/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@simulcast/infrastructure':
         specifier: workspace:*
         version: link:../../packages/infrastructure
