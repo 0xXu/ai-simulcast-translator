@@ -30,6 +30,19 @@ describe("SubtitleLine", () => {
     expect(article).toHaveClass("is-highlighted");
     expect(article).toHaveAttribute("data-revision-reason", "后文补全术语");
   });
+
+  it("does not duplicate source text when translation equals source", () => {
+    render(
+      <SubtitleLine
+        line={line({
+          sourceText: "Same text",
+          translatedText: "Same text",
+        })}
+      />,
+    );
+
+    expect(screen.getAllByText("Same text")).toHaveLength(1);
+  });
 });
 
 function line(overrides: Partial<SubtitleLineView> = {}): SubtitleLineView {

@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type {
-  AudioCaptureStatus,
-  AsrEvent,
-  AsrSessionResponse,
-  SubtitleSnapshotEvent,
+import {
+  DEFAULT_SESSION_LANGUAGES,
+  LANGUAGE_OPTIONS,
+  getLanguageOption,
+  type LanguageCode,
+  type SourceLanguageCode,
+  type TranslationSessionLanguages,
+  type AudioCaptureStatus,
+  type AsrEvent,
+  type AsrSessionResponse,
+  type SubtitleSnapshotEvent,
 } from "@simulcast/contracts";
 import { AudioCapture } from "../../features/audio/audio-capture";
 import { demoSubtitles } from "./demo-subtitles";
@@ -29,6 +35,7 @@ export interface AudioCaptureController {
 export interface AsrSessionClient {
   readonly startSession: (
     sessionId: string,
+    languages: TranslationSessionLanguages,
   ) => Promise<AsrSessionResponse>;
   readonly sendAudio: (sessionId: string, audio: Int16Array) => void;
   readonly stopSession: (
@@ -59,6 +66,28 @@ const initialAudioStatus: AudioCaptureStatus = {
   level: null,
   error: null,
 };
+
+const AUTO_LANGUAGE_OPTION = Object.freeze({
+  code: "auto" as const,
+  label: "自动检测",
+});
+
+function resolveSourceLanguage(value: string): SourceLanguageCode | null {
+  if (
+    value === AUTO_LANGUAGE_OPTION.label
+    || value === AUTO_LANGUAGE_OPTION.code
+  ) {
+    return "auto";
+  }
+  return resolveTargetLanguage(value);
+}
+
+function resolveTargetLanguage(value: string): LanguageCode | null {
+  const option = LANGUAGE_OPTIONS.find(
+    (candidate) => candidate.label === value || candidate.code === value,
+  );
+  return option?.code ?? null;
+}
 
 function createDefaultAudioCapture(): AudioCaptureController {
   return new AudioCapture();
@@ -157,6 +186,15 @@ function ControlWindow({
   const activeSessionIdRef = useRef<string | null>(null);
   const [audioStatus, setAudioStatus] =
     useState<AudioCaptureStatus>(initialAudioStatus);
+  const [sourceLanguageInput, setSourceLanguageInput] = useState<string>(
+    AUTO_LANGUAGE_OPTION.label,
+  );
+  const [targetLanguageInput, setTargetLanguageInput] = useState<string>(
+    getLanguageOption(DEFAULT_SESSION_LANGUAGES.targetLanguage)?.label
+      ?? DEFAULT_SESSION_LANGUAGES.targetLanguage,
+  );
+  const [detectedLanguage, setDetectedLanguage] =
+    useState<LanguageCode | null>(null);
   const [asrStatus, setAsrStatus] = useState<{
     readonly state: "idle" | "starting" | "ready" | "error";
     readonly message: string | null;
@@ -202,6 +240,18 @@ function ControlWindow({
     return subscribeToAsrEvents((event) => {
       if (event.type === "status") {
         setAsrStatus({ state: event.state, message: event.message });
+        if (event.state === "starting") {
+          setDetectedLanguage(null);
+        }
+        return;
+      }
+
+      if (
+        event.type === "transcript"
+        && event.detectedLanguage
+        && (event.languageProbability ?? 0) >= 0.5
+      ) {
+        setDetectedLanguage((current) => current ?? event.detectedLanguage ?? null);
         return;
       }
 
@@ -213,6 +263,11 @@ function ControlWindow({
 
   const isCapturing = audioStatus.state === "capturing";
   const isRequesting = audioStatus.state === "requesting";
+  const selectedSourceLanguage = resolveSourceLanguage(sourceLanguageInput);
+  const selectedTargetLanguage = resolveTargetLanguage(targetLanguageInput);
+  const languageSelectionValid =
+    selectedSourceLanguage !== null && selectedTargetLanguage !== null;
+  const languageControlsDisabled = isCapturing || isRequesting;
   const statusTitle = isCapturing
     ? "系统音频采集中"
     : audioStatus.state === "error"
@@ -254,7 +309,13 @@ function ControlWindow({
     setAudioStatus({ state: "requesting", level: null, error: null });
 
     try {
-      await asrClient.startSession(sessionId);
+      if (!selectedSourceLanguage || !selectedTargetLanguage) {
+        throw new Error("请选择有效的源语言和目标语言");
+      }
+      await asrClient.startSession(sessionId, {
+        sourceLanguage: selectedSourceLanguage,
+        targetLanguage: selectedTargetLanguage,
+      });
       await capture.start();
     } catch (error) {
       activeSessionIdRef.current = null;
@@ -317,10 +378,58 @@ function ControlWindow({
         </article>
       </section>
 
+      <section className="language-panel" aria-label="翻译语言">
+        <label>
+          <span>源语言</span>
+          <input
+            aria-label="源语言"
+            list="source-language-options"
+            value={sourceLanguageInput}
+            disabled={languageControlsDisabled}
+            onChange={(event) => setSourceLanguageInput(event.target.value)}
+          />
+          <datalist id="source-language-options">
+            <option value={AUTO_LANGUAGE_OPTION.label} />
+            {LANGUAGE_OPTIONS.map((option) => (
+              <option key={option.code} value={option.label} />
+            ))}
+          </datalist>
+        </label>
+        <span className="language-arrow" aria-hidden="true">→</span>
+        <label>
+          <span>目标语言</span>
+          <input
+            aria-label="目标语言"
+            list="target-language-options"
+            value={targetLanguageInput}
+            disabled={languageControlsDisabled}
+            onChange={(event) => setTargetLanguageInput(event.target.value)}
+          />
+          <datalist id="target-language-options">
+            {LANGUAGE_OPTIONS.map((option) => (
+              <option key={option.code} value={option.label} />
+            ))}
+          </datalist>
+        </label>
+        <p>
+          {selectedSourceLanguage === "auto"
+            ? detectedLanguage
+              ? `自动检测（${getLanguageOption(detectedLanguage)?.label ?? detectedLanguage}）`
+              : "自动检测"
+            : selectedSourceLanguage
+              ? getLanguageOption(selectedSourceLanguage)?.label
+              : "请选择源语言"}
+          {" → "}
+          {selectedTargetLanguage
+            ? getLanguageOption(selectedTargetLanguage)?.label
+            : "请选择目标语言"}
+        </p>
+      </section>
+
       <button
         className="primary-action"
         type="button"
-        disabled={isRequesting}
+        disabled={isRequesting || !languageSelectionValid}
         onClick={() => void toggleCapture()}
       >
         {isCapturing ? "停止采集" : isRequesting ? "请求授权中" : "开始采集"}
