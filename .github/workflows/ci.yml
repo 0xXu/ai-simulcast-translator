@@ -43,6 +43,7 @@ jobs:
         run: pnpm build
 
       - name: Install Electron binary for smoke test
+        working-directory: apps/desktop
         run: |
           electron_dir=$(node -p "require.resolve('electron/package.json').replace('/package.json','')")
           node "$electron_dir/install.js"
