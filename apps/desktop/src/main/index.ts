@@ -1,7 +1,15 @@
-import { app, BrowserWindow, shell } from "electron";
+import { app, BrowserWindow, screen, shell } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
 import { WhisperWorkerAdapter } from "@simulcast/infrastructure";
+import { loadDotEnv } from "./load-dot-env";
+
+// In development, load .env from the monorepo root so process.env is
+// populated before any code reads WHISPER_* or MIMO_* variables.
+// In a packaged build, env vars must be supplied by the OS / launcher.
+if (!app.isPackaged) {
+  loadDotEnv(app.getAppPath());
+}
 
 import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
 import { createRendererUrl } from "./renderer-url";
@@ -111,7 +119,7 @@ function createWindow(
   return window;
 }
 
-function createControlWindow(): BrowserWindow {
+function createControlWindow(x?: number, y?: number): BrowserWindow {
   const window = createWindow("control", {
     title: "AI 同声传译助手",
     width: 920,
@@ -119,6 +127,7 @@ function createControlWindow(): BrowserWindow {
     minWidth: 760,
     minHeight: 620,
     backgroundColor: "#f4f7fb",
+    ...(x !== undefined && y !== undefined ? { x, y } : {}),
   });
 
   window.on("close", () => {
@@ -136,11 +145,18 @@ function createControlWindow(): BrowserWindow {
   return window;
 }
 
-function createOverlayWindow(): BrowserWindow {
+function createOverlayWindow(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): BrowserWindow {
   const window = createWindow("overlay", {
     title: "同声传译字幕",
-    width: 900,
-    height: 220,
+    width,
+    height,
+    x,
+    y,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -166,12 +182,30 @@ function isWindowAvailable(window: BrowserWindow | null): window is BrowserWindo
 }
 
 function createApplicationWindows(): void {
+  const OVERLAY_WIDTH = 900;
+  const OVERLAY_HEIGHT = 260;
+  const BOTTOM_MARGIN = 16;
+  const GAP = 12; // gap between control window bottom and overlay top
+
+  const { width: screenWidth, height: screenHeight } =
+    screen.getPrimaryDisplay().workAreaSize;
+
+  // Overlay: horizontally centered, pinned near the bottom of the work area
+  const overlayX = Math.round((screenWidth - OVERLAY_WIDTH) / 2);
+  const overlayY = screenHeight - OVERLAY_HEIGHT - BOTTOM_MARGIN;
+
+  // Control window: horizontally centered, sitting just above the overlay
+  const controlWidth = 920;
+  const controlHeight = 720;
+  const controlX = Math.round((screenWidth - controlWidth) / 2);
+  const controlY = Math.max(0, overlayY - GAP - controlHeight);
+
   if (!isWindowAvailable(controlWindow)) {
-    controlWindow = createControlWindow();
+    controlWindow = createControlWindow(controlX, controlY);
   }
 
   if (!isWindowAvailable(overlayWindow)) {
-    overlayWindow = createOverlayWindow();
+    overlayWindow = createOverlayWindow(overlayX, overlayY, OVERLAY_WIDTH, OVERLAY_HEIGHT);
   }
 }
 
