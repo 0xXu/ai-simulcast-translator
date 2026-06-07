@@ -14,6 +14,8 @@ export interface AsrMessage {
   readonly start_ms?: number;
   readonly end_ms?: number;
   readonly is_final?: boolean;
+  readonly detected_language?: string;
+  readonly language_probability?: number;
   readonly error_code?: string;
   readonly error_message?: string;
   readonly status?: string;
@@ -23,6 +25,7 @@ export interface AsrMessage {
 export interface WhisperWorkerLaunchOptions {
   readonly engine: "mock" | "faster-whisper";
   readonly modelName: string;
+  readonly language: string;
   readonly device: string;
   readonly computeType: string;
 }
@@ -86,6 +89,8 @@ export class WhisperWorkerAdapter extends EventEmitter {
       options.engine,
       "--model",
       options.modelName,
+      "--language",
+      options.language,
       "--device",
       options.device,
       "--compute-type",

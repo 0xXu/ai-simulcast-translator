@@ -129,21 +129,32 @@ describe("registerAsrHandlers", () => {
       protocolVersion: PROTOCOL_VERSION,
       timestamp: 1,
       sessionId: "session-1",
+      languages: {
+        sourceLanguage: "auto" as const,
+        targetLanguage: "zh" as const,
+      },
     };
 
     await ipcMain.handlers.get(ASR_IPC_CHANNELS.start)!({}, sessionRequest);
     await ipcMain.handlers.get(ASR_IPC_CHANNELS.stop)!({}, sessionRequest);
     [...ipcMain.listeners.get(ASR_IPC_CHANNELS.audio)!][0]!({}, {
-      ...sessionRequest,
+      protocolVersion: sessionRequest.protocolVersion,
+      timestamp: sessionRequest.timestamp,
+      sessionId: sessionRequest.sessionId,
       audioData: "AAA=",
       sampleRate: 16000,
       channels: 1,
     });
 
-    expect(controller.startSession).toHaveBeenCalledWith("session-1");
+    expect(controller.startSession).toHaveBeenCalledWith(
+      "session-1",
+      sessionRequest.languages,
+    );
     expect(controller.stopSession).toHaveBeenCalledWith("session-1");
     expect(controller.sendAudio).toHaveBeenCalledWith({
-      ...sessionRequest,
+      protocolVersion: sessionRequest.protocolVersion,
+      timestamp: sessionRequest.timestamp,
+      sessionId: sessionRequest.sessionId,
       audioData: "AAA=",
       sampleRate: 16000,
       channels: 1,
@@ -177,7 +188,8 @@ describe("ASR main lifecycle helpers", () => {
   it("resolves launch defaults and environment overrides", () => {
     expect(resolveAsrLaunchOptions({})).toEqual({
       engine: "faster-whisper",
-      modelName: "small.en",
+      modelName: "small",
+      language: "auto",
       device: "cpu",
       computeType: "int8",
     });
@@ -190,6 +202,7 @@ describe("ASR main lifecycle helpers", () => {
     ).toEqual({
       engine: "faster-whisper",
       modelName: "large-v3",
+      language: "auto",
       device: "cuda",
       computeType: "float16",
     });
