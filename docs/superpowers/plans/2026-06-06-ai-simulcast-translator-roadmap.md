@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 通过一组单功能 PR，将空仓库逐步交付为可捕获 macOS 系统音频、使用 faster-whisper 识别、使用 MiMo 翻译并回溯修订字幕的 Electron 桌面应用。
+**Goal:** 通过一组单功能 PR，将空仓库逐步交付为可捕获 macOS 系统音频、使用 faster-whisper 识别、使用 `mimo-v2.5` 生成并回溯修订中文字幕的 Electron 桌面应用。
 
-**Architecture:** 前端使用 Electron Renderer + React，本地后端使用 Electron Main + TypeScript，ASR 使用独立 Python Worker。业务规则集中在 Domain/Application，外部模型、音频、存储和 IPC 通过适配器接入；每个 PR 合并后主分支都保持可运行和可演示。
+**Architecture:** 前端使用 Electron Renderer + React，本地后端使用 Electron Main + TypeScript，ASR 使用独立 Python Worker。MVP 保留本地 faster-whisper，`mimo-v2.5` 在一次请求中完成重叠原文整理、分段、翻译、术语统一和最近字幕纠错；外部模型、音频和 IPC 通过适配器接入。
 
 **Tech Stack:** Electron 42、React 19、TypeScript 6、electron-vite 5、Vitest 4、Playwright 1.60、Python 3.12、faster-whisper、MiMo OpenAI-compatible Chat Completions API、pnpm 11。
 
@@ -39,7 +39,30 @@
 | FIX 07 | 强化 Worker 消息校验和错误会话路由 | 非法字段返回 `INVALID_MESSAGE`，处理错误保留 sessionId |
 
 这些 PR 必须按表格顺序独立提交和验证。Worker 打包路径、内置 Python
-运行时和根 CI 聚合仍归 PR 14，不混入协议修复 PR。
+运行时和根 CI 聚合仍归最终交付 PR，不混入协议修复 PR。
+
+### 1.2 2026-06-07 MVP 模型决策
+
+开发时间优先于完整平台化能力。后续实现采用：
+
+```text
+系统音频
+  -> 本地 faster-whisper 原始英文窗口
+  -> mimo-v2.5 中文字幕快照
+  -> 最近 5 句或 20 秒原位修订
+```
+
+- 保留 faster-whisper。`mimo-v2.5-asr` 云 API 接受完整 WAV/MP3 文件，
+  不是持续 PCM 流；开源版要求 Linux、CUDA 12 和 FlashAttention，不适合
+  当前目标 Mac 的快速交付。
+- 使用 `mimo-v2.5`，不使用 `mimo-v2.5-pro`。本项目主要需要低延迟文本整理、
+  翻译和结构化字幕输出，不需要旗舰 Agent 推理能力。
+- 不在 MVP 接入 `mimo-v2.5-tts`、`mimo-v2.5-tts-voicedesign` 或
+  `mimo-v2.5-tts-voiceclone`。官方低延迟流式 TTS 尚不可用，字幕已经满足
+  题目“字幕或语音”的交付要求。
+- 不再单独实现复杂原文稳定器、翻译请求哈希系统和模型级
+  `upsert`/`replace` 操作协议。`mimo-v2.5` 返回最近可修订区的完整字幕快照，
+  客户端使用递增 `requestId` 丢弃旧响应。
 
 ## 2. PR 顺序总览
 
@@ -53,12 +76,9 @@
 | 06 | Python ASR Worker 协议 | PR 02 | Mock Worker 可流式返回带时间戳原文 |
 | 07 | faster-whisper 识别引擎 | PR 06 | 固定英语 WAV 可通过 Worker 得到真实英文结果 |
 | 08 | 桌面音频到 ASR 的会话链路 | PR 05、06、07 | 播放英文音频时显示实时原文 |
-| 09 | 增量原文稳定与分段 | PR 08 | 原文不重复，稳定段和活动尾部可区分 |
-| 10 | MiMo 文本翻译客户端 | PR 02 | 输入英文可显示 MiMo 中文翻译 |
-| 11 | 上下文翻译调度器 | PR 03、09、10 | 最近 5 句或 20 秒随请求发送 |
-| 12 | Semantic Rewind | PR 04、11 | 后文可修正最近字幕并高亮 |
-| 13 | 设置、安全和异常降级 | PR 05、08、10、12 | 断网或模型失败时继续显示英文 |
-| 14 | CI、打包和演示验收 | PR 13 | 新环境可构建，评委可复现完整演示 |
+| 09 | MiMo V2.5 中文字幕协调器 | PR 08 | 原文去重、分段、翻译和最近上下文纠错一次完成 |
+| 10 | 字幕快照与 Semantic Rewind 展示 | PR 03、04、09 | 后文可修正最近字幕并高亮，故障时保留英文 |
+| 11 | CI、打包和演示验收 | PR 10 | 新环境可构建，评委可复现完整演示 |
 
 ## 3. 各 PR 交付定义
 
@@ -264,125 +284,66 @@ Renderer 展示。
 git commit -m "feat: 接通桌面音频到 ASR 会话链路"
 ```
 
-### PR 09：新增增量原文稳定与分段
+### PR 09：新增 MiMo V2.5 中文字幕协调器
 
-**功能描述：** 合并 4 至 6 秒重叠识别窗口，去除重复前缀，将输出分为稳定前缀和活动尾部，并生成稳定 `segmentId`。
-
-**主要文件：**
-
-- `packages/application/src/transcript/transcript-stabilizer.ts`
-- `packages/application/src/transcript/segment-manager.ts`
-- `packages/application/src/transcript/*.test.ts`
-
-**测试重点：**
-
-- 重叠窗口不产生重复词。
-- Whisper 修正尾部时更新原段而非新增重复段。
-- 停顿和句末生成新段。
-
-**提交信息：**
-
-```bash
-git commit -m "feat: 新增增量原文稳定与分段"
-```
-
-### PR 10：新增 MiMo 文本翻译客户端
-
-**功能描述：** 实现 `TranslatorPort` 的 MiMo 适配器，调用 OpenAI-compatible `/chat/completions`，校验结构化 JSON，并提供可注入 Mock。
+**功能描述：** 调用 `mimo-v2.5`，将最近约 20 秒的 faster-whisper 原始窗口和
+当前最近 5 条双语字幕一起发送，由模型一次完成重叠文本整理、句子分段、英译中、
+术语统一和前文语义纠错。
 
 **主要文件：**
 
-- `packages/application/src/ports/translator-port.ts`
+- `packages/application/src/translation/subtitle-coordinator.ts`
+- `packages/application/src/translation/subtitle-snapshot.ts`
 - `packages/infrastructure/src/mimo/mimo-client.ts`
 - `packages/infrastructure/src/mimo/response-schema.ts`
-- `packages/infrastructure/src/mimo/mimo-client.test.ts`
+- `packages/application/src/translation/*.test.ts`
 
 **技术约束：**
 
-- 不使用工具调用。
-- 每次请求自包含上下文，不发送工具历史。
+- 模型固定使用 `mimo-v2.5`，设置 `thinking: disabled`。
+- 每约 1.2 至 1.5 秒最多创建一个请求，同一时刻只运行一个请求并最多保留一个
+  最新待处理快照。
+- 每次请求自包含最近 5 句或 20 秒上下文，不发送工具历史。
+- 模型返回完整的可修订字幕窗口，而不是自由文本或细粒度操作列表。
+- 使用递增 `requestId` 丢弃过期响应。
 - API Key 只存在于 Electron Main。
 - 非法 JSON 最多重试一次。
+- MiMo 故障不阻塞本地英文原文。
 
 **提交信息：**
 
 ```bash
-git commit -m "feat: 新增 MiMo 文本翻译客户端"
+git commit -m "feat: 新增 MiMo V2.5 中文字幕协调器"
 ```
 
-### PR 11：新增上下文翻译调度器
+### PR 10：新增字幕快照与 Semantic Rewind 展示
 
-**功能描述：** 组合最近 5 句或 20 秒上下文，合并高频输入，同一时刻只运行一个请求并保留一个待处理快照。
+**功能描述：** 将 MiMo 返回的最近字幕快照应用到字幕时间线，在悬浮窗原位替换
+最近字幕，并对变化文本显示 500 至 800 ms 高亮。超过 5 句或 20 秒的字幕锁定。
 
 **主要文件：**
 
-- `packages/application/src/translation/context-builder.ts`
-- `packages/application/src/translation/translation-scheduler.ts`
-- `packages/application/src/translation/request-hash.ts`
-- `packages/application/src/translation/*.test.ts`
-
-**测试重点：**
-
-- 窗口使用“5 句或 20 秒任一超限即排除”。
-- 相同输入哈希不重复请求。
-- 请求期间的新文本合并为一个后续请求。
-- 超时不阻塞 ASR 事件。
-
-**提交信息：**
-
-```bash
-git commit -m "feat: 新增上下文翻译调度器"
-```
-
-### PR 12：新增 Semantic Rewind
-
-**功能描述：** 将 MiMo 修订操作接入字幕时间线，在悬浮窗原位替换最近字幕，并对变化文本显示 500 至 800 ms 高亮。
-
-**主要文件：**
-
-- `packages/application/src/revision/apply-translation-response.ts`
+- `packages/application/src/revision/apply-subtitle-snapshot.ts`
 - `apps/desktop/src/renderer/entities/subtitle/subtitle-store.ts`
 - `apps/desktop/src/renderer/features/subtitles/subtitle-line.tsx`
 - `apps/desktop/src/renderer/features/subtitles/subtitle-line.test.tsx`
 
 **测试重点：**
 
-- 后文修订指定 `segmentId`。
-- 旧响应不覆盖新版本。
+- 较新的 `requestId` 快照原位替换最近字幕。
+- 旧响应不能覆盖新快照。
 - 锁定字幕不变化。
 - 高亮结束后保留修订后的文本。
+- MiMo 超时或断线时继续显示英文原文并允许后续恢复。
+- Renderer 永远无法读取 API Key。
 
 **提交信息：**
 
 ```bash
-git commit -m "feat: 新增字幕语义回溯与修订高亮"
+git commit -m "feat: 新增字幕快照回溯与修订高亮"
 ```
 
-### PR 13：新增设置、安全和异常降级
-
-**功能描述：** 提供 MiMo 配置、Keychain 密钥保存、运行状态和降级策略。MiMo 故障时继续显示英文原文，Worker 故障时提供重启。
-
-**主要文件：**
-
-- `packages/application/src/settings/settings-service.ts`
-- `packages/infrastructure/src/settings/secure-settings-adapter.ts`
-- `apps/desktop/src/renderer/features/settings/settings-form.tsx`
-- `apps/desktop/src/renderer/features/runtime/runtime-status.tsx`
-
-**测试重点：**
-
-- Renderer 永远收不到 API Key。
-- MiMo 超时后原文链路继续。
-- Worker 异常状态可见并可重新启动。
-- 日志对密钥和字幕正文脱敏。
-
-**提交信息：**
-
-```bash
-git commit -m "feat: 新增安全设置与运行异常降级"
-```
-
-### PR 14：新增 CI、打包和演示验收
+### PR 11：新增 CI、打包和演示验收
 
 **功能描述：** 建立 GitHub Actions、macOS 构建、Playwright Electron 冒烟测试和固定演示脚本，保证任意提交可复现当前效果。
 
@@ -471,13 +432,13 @@ CI 不下载大型 Whisper 模型，也不调用真实 MiMo。单元和集成测
 
 ## 7. 完成定义
 
-全部 14 个 PR 合并后，项目必须满足设计文档中的首版验收标准：
+全部 MVP PR 合并后，项目必须满足设计文档中的首版验收标准：
 
 1. macOS 播放英文内容时持续显示中文悬浮字幕。
 2. 原始音频默认不上传，faster-whisper 在本地识别。
 3. MiMo 负责中文翻译和上下文修订。
 4. 最近 5 句或 20 秒字幕支持原位修改。
-5. 版本冲突不会导致旧响应覆盖新字幕。
+5. 较小 `requestId` 的旧响应不会覆盖新字幕快照。
 6. MiMo 故障时英文原文继续显示。
 7. 30 分钟运行不打乱字幕顺序、不明显重复。
 8. 新环境按 README 能构建并复现演示。

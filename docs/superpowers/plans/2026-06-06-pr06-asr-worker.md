@@ -20,7 +20,7 @@
 - Worker 协议将非对象 JSON、缺少字段、字段类型错误统一转换为 `ValueError`，
   主循环返回 `INVALID_MESSAGE`。
 - 音频处理失败时错误消息必须保留输入消息的 `session_id`。
-- Worker 的相对路径和 `uv` 依赖可在开发阶段保留；打包运行时归 PR 14。
+- Worker 的相对路径和 `uv` 依赖可在开发阶段保留；打包运行时归最终交付 PR。
 
 ---
 

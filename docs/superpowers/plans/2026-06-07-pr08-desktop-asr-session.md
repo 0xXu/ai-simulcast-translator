@@ -10,6 +10,23 @@
 
 ---
 
+## MVP Decision Update
+
+PR 08 continues to use local faster-whisper and only delivers the real English
+transcript chain. It does not integrate `mimo-v2.5-asr`: the hosted ASR API
+accepts complete WAV/MP3 files rather than a continuous PCM stream, while the
+open-source model requires a Linux/CUDA environment unsuitable for the target
+Mac MVP.
+
+PR 09 will send recent raw Whisper windows directly to `mimo-v2.5`, which will
+perform overlap cleanup, sentence segmentation, Chinese translation, and
+recent-context correction in one structured subtitle snapshot. Therefore PR 08
+does not need a standalone transcript stabilizer.
+
+TTS, voice design, and voice cloning are outside the MVP. Packaged distribution
+of Python, uv, and model weights remains a final delivery concern; PR 08 only
+guarantees development and source-run operation.
+
 ## Scope
 
 Included:
