@@ -17,7 +17,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          # Pin to 24.15.0: Node 24.16+ has a known regression in extract-zip
+          # that causes electron's postinstall to silently fail (path.txt not created).
+          # See: https://github.com/electron/electron/issues/51619
+          node-version: "24.15.0"
 
       - name: Enable pnpm
         run: |
@@ -41,6 +44,25 @@ jobs:
 
       - name: Build desktop app
         run: pnpm build
+
+      - name: Install Electron binary for smoke test
+        working-directory: apps/desktop
+        run: |
+          electron_dir=$(node -p "require.resolve('electron/package.json').replace('/package.json','')")
+          electron_ver=$(node -p "require('electron/package.json').version")
+          arch=$(uname -m | sed 's/x86_64/x64/')
+          zip_url="https://github.com/electron/electron/releases/download/v${electron_ver}/electron-v${electron_ver}-darwin-${arch}.zip"
+
+          # Re-download with system unzip to avoid extract-zip Node compatibility issues
+          echo "Downloading Electron v${electron_ver} (${arch})..."
+          curl -fsSL "${zip_url}" -o /tmp/electron.zip
+          rm -rf "${electron_dir}/dist"
+          unzip -q /tmp/electron.zip -d "${electron_dir}/dist"
+          printf 'Electron.app/Contents/MacOS/Electron' > "${electron_dir}/path.txt"
+
+          # Verify
+          binary="${electron_dir}/dist/$(cat "${electron_dir}/path.txt")"
+          test -f "${binary}" && echo "✅ Electron binary ready: ${binary}" || (echo "❌ Binary not found: ${binary}" && exit 1)
 
       - name: Run Electron smoke test
         run: pnpm test:e2e
