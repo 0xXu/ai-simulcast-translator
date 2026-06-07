@@ -39,7 +39,7 @@ export function validateMimoSubtitleSnapshot(
 export function parseMimoSubtitleSnapshot(content: string): SubtitleSnapshot {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(stripJsonMarkdownFence(content));
   } catch (error) {
     throw new MimoResponseFormatError(
       error instanceof Error ? error.message : String(error),
@@ -47,6 +47,12 @@ export function parseMimoSubtitleSnapshot(content: string): SubtitleSnapshot {
   }
 
   return validateMimoSubtitleSnapshot(parsed);
+}
+
+function stripJsonMarkdownFence(content: string): string {
+  const trimmed = content.trim();
+  const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(trimmed);
+  return fenced?.[1] ?? trimmed;
 }
 
 function toSnapshotItem(

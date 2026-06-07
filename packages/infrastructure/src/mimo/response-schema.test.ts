@@ -47,4 +47,32 @@ describe("MiMo subtitle response schema", () => {
       }),
     ).toThrow(MimoResponseFormatError);
   });
+
+  it("accepts a valid snapshot wrapped in a JSON markdown fence", () => {
+    expect(
+      parseMimoSubtitleSnapshot([
+        "```json",
+        JSON.stringify({
+          requestId: 19,
+          subtitles: [
+            {
+              sourceText: "The bank is next to the river.",
+              translatedText: "河岸就在河边。",
+              revised: true,
+            },
+          ],
+        }),
+        "```",
+      ].join("\n")),
+    ).toEqual({
+      requestId: 19,
+      subtitles: [
+        {
+          sourceText: "The bank is next to the river.",
+          translatedText: "河岸就在河边。",
+          revised: true,
+        },
+      ],
+    });
+  });
 });
