@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type {
   AudioCaptureStatus,
+  AsrEvent,
   AsrSessionResponse,
   SubtitleSnapshotEvent,
 } from "@simulcast/contracts";
@@ -39,11 +40,16 @@ export type SubtitleSnapshotSubscriber = (
   listener: (event: SubtitleSnapshotEvent) => void,
 ) => () => void;
 
+export type AsrEventSubscriber = (
+  listener: (event: AsrEvent) => void,
+) => () => void;
+
 interface AppProps {
   windowKind: WindowKind;
   createAudioCapture?: () => AudioCaptureController;
   asrClient?: AsrSessionClient;
   createSessionId?: () => string;
+  subscribeToAsrEvents?: AsrEventSubscriber;
   subscribeToSubtitleSnapshots?: SubtitleSnapshotSubscriber;
   now?: () => number;
 }
@@ -99,6 +105,19 @@ function createDefaultSubtitleSnapshotSubscriber(
   return window.api.onSubtitleSnapshot(listener);
 }
 
+function createDefaultAsrEventSubscriber(
+  listener: (event: AsrEvent) => void,
+): () => void {
+  if (
+    typeof window === "undefined" ||
+    typeof window.api?.onAsrEvent !== "function"
+  ) {
+    return () => undefined;
+  }
+
+  return window.api.onAsrEvent(listener);
+}
+
 function toSubtitleStoreSegment(
   segment: SubtitleSnapshotEvent["segments"][number],
 ): SubtitleStoreSegment {
@@ -127,15 +146,24 @@ function ControlWindow({
   createAudioCapture,
   asrClient,
   createSessionId,
+  subscribeToAsrEvents,
 }: {
   createAudioCapture: () => AudioCaptureController;
   asrClient: AsrSessionClient;
   createSessionId: () => string;
+  subscribeToAsrEvents: AsrEventSubscriber;
 }) {
   const captureRef = useRef<AudioCaptureController | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const [audioStatus, setAudioStatus] =
     useState<AudioCaptureStatus>(initialAudioStatus);
+  const [asrStatus, setAsrStatus] = useState<{
+    readonly state: "idle" | "starting" | "ready" | "error";
+    readonly message: string | null;
+  }>({
+    state: "idle",
+    message: null,
+  });
 
   if (!captureRef.current) {
     captureRef.current = createAudioCapture();
@@ -170,6 +198,19 @@ function ControlWindow({
     };
   }, [asrClient]);
 
+  useEffect(() => {
+    return subscribeToAsrEvents((event) => {
+      if (event.type === "status") {
+        setAsrStatus({ state: event.state, message: event.message });
+        return;
+      }
+
+      if (event.type === "error") {
+        setAsrStatus({ state: "error", message: event.message });
+      }
+    });
+  }, [subscribeToAsrEvents]);
+
   const isCapturing = audioStatus.state === "capturing";
   const isRequesting = audioStatus.state === "requesting";
   const statusTitle = isCapturing
@@ -183,6 +224,14 @@ function ControlWindow({
     ?? (isCapturing
       ? `${audioStatus.level?.level ?? 0}%`
       : "等待采集系统音频");
+  const asrStatusTitle = asrStatus.state === "starting"
+    ? "本地识别启动中"
+    : asrStatus.state === "ready"
+      ? "本地识别已就绪"
+      : asrStatus.state === "error"
+        ? "本地识别异常"
+        : "本地识别待启动";
+  const asrStatusDetail = asrStatus.message ?? "等待开始 ASR 会话";
 
   async function toggleCapture(): Promise<void> {
     const capture = captureRef.current;
@@ -237,6 +286,17 @@ function ControlWindow({
           <strong>{statusTitle}</strong>
         </div>
         <p>{statusDetail}</p>
+      </section>
+
+      <section className="status-card status-card-secondary" aria-label="识别状态">
+        <div>
+          <span
+            className={`status-dot status-${asrStatus.state}`}
+            aria-hidden="true"
+          />
+          <strong>{asrStatusTitle}</strong>
+        </div>
+        <p>{asrStatusDetail}</p>
       </section>
 
       <section className="capability-grid" aria-label="核心能力">
@@ -320,6 +380,7 @@ export function App({
   createAudioCapture = createDefaultAudioCapture,
   asrClient = createDefaultAsrSessionClient(),
   createSessionId = createDefaultSessionId,
+  subscribeToAsrEvents = createDefaultAsrEventSubscriber,
   subscribeToSubtitleSnapshots = createDefaultSubtitleSnapshotSubscriber,
   now = Date.now,
 }: AppProps) {
@@ -335,6 +396,7 @@ export function App({
         createAudioCapture={createAudioCapture}
         asrClient={asrClient}
         createSessionId={createSessionId}
+        subscribeToAsrEvents={subscribeToAsrEvents}
       />
     );
 }
