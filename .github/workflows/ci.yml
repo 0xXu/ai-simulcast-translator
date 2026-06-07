@@ -42,6 +42,18 @@ jobs:
       - name: Build desktop app
         run: pnpm build
 
+      - name: Install Electron binary for smoke test
+        run: |
+          electron_dir=$(node -p "require.resolve('electron/package.json').replace('/package.json','')")
+          electron_ver=$(node -p "require('electron/package.json').version")
+          rm -rf "$electron_dir/dist"
+          mkdir -p "$electron_dir/dist"
+          curl -fsSL "https://github.com/electron/electron/releases/download/v${electron_ver}/electron-v${electron_ver}-darwin-arm64.zip" -o /tmp/electron.zip
+          unzip -q /tmp/electron.zip -d "$electron_dir/dist"
+          echo "Electron.app/Contents/MacOS/Electron" > "$electron_dir/path.txt"
+          test -f "$electron_dir/dist/Electron.app/Contents/MacOS/Electron"
+        working-directory: apps/desktop
+
       - name: Run Electron smoke test
         run: pnpm test:e2e
 
