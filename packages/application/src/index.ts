@@ -26,3 +26,13 @@ export {
   type SubtitleCoordinatorStaleResult,
   type SubtitleCoordinatorFailedResult,
 } from "./translation/subtitle-coordinator";
+
+export {
+  applySubtitleSnapshot,
+  type SubtitleSnapshotTimelinePort,
+  type ApplySubtitleSnapshotOptions,
+  type AppliedSubtitleChange,
+  type AppliedSubtitleSnapshot,
+  type StaleSubtitleSnapshot,
+  type ApplySubtitleSnapshotResult,
+} from "./revision/apply-subtitle-snapshot";

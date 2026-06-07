@@ -173,13 +173,32 @@ h1 {
 }
 
 .subtitle-card {
+  display: grid;
+  gap: 10px;
   padding: 18px 22px;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 18px;
+  border-radius: 8px;
   color: #fff;
   background: rgba(9, 14, 25, 0.84);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(18px);
+}
+
+.subtitle-line {
+  padding: 0 0 0 12px;
+  border-left: 3px solid rgba(255, 255, 255, 0.2);
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.subtitle-line.is-highlighted {
+  border-color: #f3d16b;
+  background: rgba(243, 209, 107, 0.12);
+}
+
+.subtitle-line.state-live {
+  opacity: 0.78;
 }
 
 .translation {

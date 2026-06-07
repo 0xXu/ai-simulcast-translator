@@ -57,7 +57,7 @@ describe("App", () => {
     expect(
       screen.queryByRole("heading", { name: "AI 同声传译助手" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("字幕演示")).toBeInTheDocument();
+    expect(screen.getByText("SEMANTIC REWIND")).toBeInTheDocument();
 
     const status = screen.getByRole("status");
     const translation = screen.getByText(
@@ -67,7 +67,8 @@ describe("App", () => {
       "Context helps real-time translation become more accurate.",
     );
 
-    expect(status).toHaveClass("state-revisable");
+    expect(status.querySelector(".subtitle-line")).toHaveClass("state-revisable");
+    expect(status.querySelector(".subtitle-line")).toHaveClass("is-highlighted");
     expect(translation).toHaveAttribute("lang", "zh-CN");
     expect(source).toHaveAttribute("lang", "en");
   });

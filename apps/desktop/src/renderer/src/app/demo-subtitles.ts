@@ -3,6 +3,8 @@ export interface DemoSubtitle {
   readonly sourceText: string;
   readonly translatedText: string;
   readonly state: "live" | "revisable" | "locked";
+  readonly highlighted?: boolean;
+  readonly revisionReason?: string;
 }
 
 export const demoSubtitles: ReadonlyArray<DemoSubtitle> = [
@@ -12,5 +14,7 @@ export const demoSubtitles: ReadonlyArray<DemoSubtitle> = [
       "Context helps real-time translation become more accurate.",
     translatedText: "上下文会让实时翻译逐步变得更准确。",
     state: "revisable",
+    highlighted: true,
+    revisionReason: "后文补全语义",
   },
 ];

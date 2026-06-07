@@ -10,6 +10,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@simulcast/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@simulcast/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

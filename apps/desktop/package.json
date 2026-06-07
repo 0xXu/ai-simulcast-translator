@@ -13,6 +13,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@simulcast/application": "workspace:*",
     "@simulcast/contracts": "workspace:*",
     "@simulcast/infrastructure": "workspace:*",
     "react": "19.2.7",

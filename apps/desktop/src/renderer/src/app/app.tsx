@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AudioCaptureStatus } from "@simulcast/contracts";
 import { AudioCapture } from "../../features/audio/audio-capture";
 import { demoSubtitles } from "./demo-subtitles";
+import { SubtitleLine } from "../../features/subtitles/subtitle-line";
 import "./styles.css";
 
 export type WindowKind = "control" | "overlay";
@@ -139,26 +140,27 @@ function ControlWindow({
 }
 
 function OverlayWindow() {
-  const subtitle = demoSubtitles[0];
+  const subtitles = demoSubtitles.slice(-3).map((subtitle, index) => ({
+    id: subtitle.id,
+    sequence: index + 1,
+    sourceText: subtitle.sourceText,
+    translatedText: subtitle.translatedText,
+    state: subtitle.state,
+    highlighted: subtitle.highlighted ?? false,
+    revisionReason: subtitle.revisionReason ?? null,
+  }));
 
-  if (!subtitle) {
+  if (subtitles.length === 0) {
     return null;
   }
 
   return (
     <main className="overlay-shell">
-      <div className="overlay-label">字幕演示</div>
-      <section
-        className={`subtitle-card state-${subtitle.state}`}
-        role="status"
-        aria-live="polite"
-      >
-        <p className="translation" lang="zh-CN">
-          {subtitle.translatedText}
-        </p>
-        <p className="source" lang="en">
-          {subtitle.sourceText}
-        </p>
+      <div className="overlay-label">SEMANTIC REWIND</div>
+      <section className="subtitle-card" role="status" aria-live="polite">
+        {subtitles.map((subtitle) => (
+          <SubtitleLine key={subtitle.id} line={subtitle} />
+        ))}
       </section>
     </main>
   );
