@@ -28,6 +28,7 @@ export interface AsrStatusEvent {
   readonly sessionId: string;
   readonly state: AsrSessionState;
   readonly message: string | null;
+  readonly languages?: TranslationSessionLanguages;
 }
 
 export interface AsrTranscriptEvent {

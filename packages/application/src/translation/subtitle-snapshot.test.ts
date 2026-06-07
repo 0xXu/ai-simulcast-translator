@@ -45,6 +45,8 @@ describe("subtitle snapshot request building", () => {
     const request = buildSubtitleTranslationRequest({
       requestId: 9,
       sessionId: "session-1",
+      sourceLanguage: "en",
+      targetLanguage: "ja",
       rawTranscriptWindows: [
         transcript({ sequence: 1, text: "The model runs locally.", endMs: 1_200 }),
       ],
@@ -56,6 +58,8 @@ describe("subtitle snapshot request building", () => {
     expect(request).toMatchObject({
       requestId: 9,
       sessionId: "session-1",
+      sourceLanguage: "en",
+      targetLanguage: "ja",
       rawTranscriptWindows: [
         { sequence: 1, text: "The model runs locally." },
       ],

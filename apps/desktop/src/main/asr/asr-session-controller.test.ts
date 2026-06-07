@@ -138,12 +138,14 @@ describe("AsrSessionController", () => {
       sessionId: "session-1",
       state: "starting",
       message: "正在启动本地语音识别",
+      languages,
     });
     expect(publish).toHaveBeenNthCalledWith(2, {
       type: "status",
       sessionId: "session-1",
       state: "ready",
       message: "本地语音识别已就绪",
+      languages,
     });
     await expect(controller.startSession("session-2", languages)).rejects.toThrow(
       "已有 ASR 会话正在运行",

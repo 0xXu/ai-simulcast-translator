@@ -188,6 +188,8 @@ function snapshot(requestId: number): SubtitleSnapshot {
 function input(text: string): SubtitleCoordinatorInput {
   return {
     sessionId: "session-1",
+    sourceLanguage: "en",
+    targetLanguage: "zh",
     rawTranscriptWindows: [
       {
         sequence: 1,

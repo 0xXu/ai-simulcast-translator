@@ -3,7 +3,10 @@ import type {
   SubtitleTranslationRequest,
   TranslatorPort,
 } from "@simulcast/application";
-import { MimoClient } from "@simulcast/infrastructure";
+import {
+  LanguageAwareTranslator,
+  MimoClient,
+} from "@simulcast/infrastructure";
 
 export class SourceTextFallbackTranslator implements TranslatorPort {
   async translate(
@@ -28,12 +31,14 @@ export function createTranslatorFromEnv(
   const baseUrl = (env.MIMO_BASE_URL ?? env.MIMO_API_BASE_URL)?.trim();
 
   if (!apiKey || !baseUrl) {
-    return new SourceTextFallbackTranslator();
+    return new LanguageAwareTranslator(new SourceTextFallbackTranslator());
   }
 
-  return new MimoClient({
-    apiKey,
-    baseUrl,
-    model: env.MIMO_MODEL?.trim() || "mimo-v2.5",
-  });
+  return new LanguageAwareTranslator(
+    new MimoClient({
+      apiKey,
+      baseUrl,
+      model: env.MIMO_MODEL?.trim() || "mimo-v2.5",
+    }),
+  );
 }

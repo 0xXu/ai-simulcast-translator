@@ -1,8 +1,7 @@
 import type { SubtitleTranslationRequest } from "@simulcast/application";
-import { MimoClient } from "@simulcast/infrastructure";
+import { LanguageAwareTranslator } from "@simulcast/infrastructure";
 import { describe, expect, it } from "vitest";
 import {
-  SourceTextFallbackTranslator,
   createTranslatorFromEnv,
 } from "./translator-factory";
 
@@ -13,13 +12,13 @@ describe("createTranslatorFromEnv", () => {
         MIMO_API_KEY: "secret",
         MIMO_BASE_URL: "https://mimo.example/v1",
       }),
-    ).toBeInstanceOf(MimoClient);
+    ).toBeInstanceOf(LanguageAwareTranslator);
   });
 
   it("falls back to source text when MiMo config is incomplete", async () => {
     const translator = createTranslatorFromEnv({ MIMO_API_KEY: "secret" });
 
-    expect(translator).toBeInstanceOf(SourceTextFallbackTranslator);
+    expect(translator).toBeInstanceOf(LanguageAwareTranslator);
     await expect(translator.translate(request("hello"))).resolves.toEqual({
       requestId: 1,
       subtitles: [
@@ -38,6 +37,8 @@ function request(text: string): SubtitleTranslationRequest {
   return {
     requestId: 1,
     sessionId: "session-1",
+    sourceLanguage: "en",
+    targetLanguage: "zh",
     rawTranscriptWindows: [
       {
         sequence: 1,

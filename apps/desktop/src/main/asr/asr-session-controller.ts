@@ -176,6 +176,7 @@ export class AsrSessionController {
       sessionId,
       state: "starting",
       message: "正在启动本地语音识别",
+      languages,
     });
 
     const startupPromise = this.runStartup(context, languages);
@@ -206,6 +207,7 @@ export class AsrSessionController {
         sessionId,
         state: "ready",
         message: "本地语音识别已就绪",
+        languages,
       });
       return { sessionId, state: "ready" };
     } catch (error) {

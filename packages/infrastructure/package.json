@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@simulcast/application": "workspace:*",
+    "@simulcast/contracts": "workspace:*",
     "zod": "3.23.8"
   },
   "devDependencies": {
