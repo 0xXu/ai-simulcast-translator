@@ -24,7 +24,7 @@ describe("registerDisplayMediaHandler", () => {
         if (nextHandler) {
           handlers.push(nextHandler);
         }
-        expect(options).toEqual({ useSystemPicker: true });
+        expect(options).toEqual({ useSystemPicker: false });
       }),
     } as unknown as Session;
     const source = { id: "screen:1:0", name: "Main screen" } as DesktopCapturerSource;

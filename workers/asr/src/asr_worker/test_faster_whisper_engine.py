@@ -150,43 +150,43 @@ def test_rejects_odd_byte_count():
 
 
 # ---------------------------------------------------------------------------
-# 5. No inference before 1.6 s
+# 5. No inference before 1.0 s
 # ---------------------------------------------------------------------------
 
 
 def test_no_inference_before_min_window():
     engine, model = _make_engine()
-    result = _feed(engine, 3)
+    result = _feed(engine, 2)
     assert result is None
     assert len(model.inputs) == 0
 
 
 # ---------------------------------------------------------------------------
-# 6. First inference at 1.6 s
+# 6. First inference at 1.0 s
 # ---------------------------------------------------------------------------
 
 
 def test_first_inference_at_min_window():
     engine, model = _make_engine()
-    result = _feed(engine, 4)
+    result = _feed(engine, 3)
     assert result is not None
     assert len(model.inputs) == 1
 
 
 # ---------------------------------------------------------------------------
-# 7. Subsequent inference every 800 ms
+# 7. Subsequent inference every 400 ms
 # ---------------------------------------------------------------------------
 
 
 def test_subsequent_inference_every_step():
     engine, model = _make_engine()
-    _feed(engine, 4, start=1)    # 1600 ms — 1st inference
-    _feed(engine, 1, start=5)    # 2000 ms — no new inference (only +400 ms)
-    assert len(model.inputs) == 1
-    _feed(engine, 1, start=6)    # 2400 ms — 2nd inference (+800 ms from last)
+    _feed(engine, 3, start=1)    # 1200 ms — 1st inference
+    _feed(engine, 1, start=4)    # 1600 ms — 2nd inference (+400 ms from last)
     assert len(model.inputs) == 2
-    _feed(engine, 2, start=7)    # 3200 ms — 3rd inference (+800 ms more)
+    _feed(engine, 1, start=5)    # 2000 ms — 3rd inference (+400 ms more)
     assert len(model.inputs) == 3
+    _feed(engine, 2, start=6)    # 2800 ms — 4th & 5th inference (+400 ms each)
+    assert len(model.inputs) == 5
 
 
 # ---------------------------------------------------------------------------
@@ -197,9 +197,9 @@ def test_subsequent_inference_every_step():
 def test_inference_window_capped():
     engine, model = _make_engine()
     _feed(engine, 6, start=1)
-    assert len(model.inputs) == 2
-    max_samples = 16000 * 6000 // 1000
-    assert model.inputs[1].size <= max_samples
+    assert len(model.inputs) == 4
+    max_samples = 16000 * 4000 // 1000
+    assert model.inputs[-1].size <= max_samples
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ def test_inference_window_capped():
 
 def test_empty_segments_returns_none():
     engine, model = _make_engine(segments=[])
-    result = _feed(engine, 4)
+    result = _feed(engine, 3)
     assert result is None
     assert len(model.inputs) == 1
 
@@ -217,7 +217,7 @@ def test_empty_segments_returns_none():
 def test_all_blank_text_returns_none():
     segs = [FakeSegment(text="   ", start=0.0, end=1.0, avg_logprob=-0.3)]
     engine, model = _make_engine(segments=segs)
-    result = _feed(engine, 4)
+    result = _feed(engine, 3)
     assert result is None
 
 
@@ -265,18 +265,18 @@ def test_confidence_clamped_to_0_1():
 def test_reset_clears_state():
     engine, model = _make_engine()
     _feed(engine, 6, start=1)
-    assert len(model.inputs) == 2  # 1600ms + 2400ms
+    assert len(model.inputs) == 4  # 1200ms, 1600ms, 2000ms, 2400ms
 
     engine.reset()
     model.inputs.clear()
 
-    result = _feed(engine, 3, start=1)
+    result = _feed(engine, 2, start=1)
     assert result is None
     assert len(model.inputs) == 0
 
-    # Feed 4 messages: total 1200 + 1600 = 2800 ms.
-    # First message of this batch (msg 4) crosses 1600 ms min_window → inference.
-    _feed(engine, 4, start=4)
+    # Feed 3 messages: total 800 + 1200 = 2000 ms.
+    # First message of this batch (msg 3) crosses 1000 ms min_window → inference.
+    _feed(engine, 3, start=3)
     assert len(model.inputs) >= 1
 
 

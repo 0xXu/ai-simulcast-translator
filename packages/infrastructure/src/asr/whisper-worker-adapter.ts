@@ -81,7 +81,7 @@ export class WhisperWorkerAdapter extends EventEmitter {
     this.resetStdoutBuffer();
 
     const spawnProcess = this.options.spawnProcess ?? spawn;
-    
+
     let command: string;
     let args: string[];
 
