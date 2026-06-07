@@ -1,12 +1,21 @@
 import { app, BrowserWindow, shell } from "electron";
 import type { BrowserWindowConstructorOptions } from "electron";
 import { join } from "node:path";
+import { WhisperWorkerAdapter } from "@simulcast/infrastructure";
 
 import { decideNavigation, isAllowedExternalUrl } from "./navigation-policy";
 import { createRendererUrl } from "./renderer-url";
 import type { WindowKind } from "./renderer-url";
 import { registerIpcHandlers } from "./ipc/register-handlers";
 import { registerDisplayMediaHandler } from "./audio/register-display-media";
+import { AsrSessionController } from "./asr/asr-session-controller";
+import {
+  createAsrCleanup,
+  publishAsrEventToWindows,
+  registerAsrHandlers,
+  resolveAsrLaunchOptions,
+} from "./asr/register-asr-handlers";
+import { resolveAsrWorkerCwd } from "./asr/resolve-worker-cwd";
 
 let controlWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -191,6 +200,27 @@ if (!hasSingleInstanceLock) {
     .then(() => {
       registerIpcHandlers();
       registerDisplayMediaHandler();
+      const workerDirOverride = process.env.ASR_WORKER_DIR;
+      const worker = new WhisperWorkerAdapter({
+        workerCwd: resolveAsrWorkerCwd({
+          appPath: app.getAppPath(),
+          resourcesPath: process.resourcesPath,
+          isPackaged: app.isPackaged,
+          ...(workerDirOverride ? { override: workerDirOverride } : {}),
+        }),
+      });
+      const controller = new AsrSessionController({
+        worker,
+        publish: (event) => {
+          publishAsrEventToWindows(BrowserWindow.getAllWindows(), event);
+        },
+        launch: resolveAsrLaunchOptions(process.env),
+      });
+      const unregisterAsr = registerAsrHandlers(controller);
+      app.once(
+        "before-quit",
+        createAsrCleanup(controller, unregisterAsr),
+      );
       createApplicationWindows();
 
       app.on("activate", () => {

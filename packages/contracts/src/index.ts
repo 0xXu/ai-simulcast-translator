@@ -28,3 +28,21 @@ export {
   createAudioLevel,
   validateAudioConfig,
 } from "./audio";
+
+export {
+  type AsrSessionState,
+  type AsrSessionRequest,
+  type AsrAudioRequest,
+  type AsrSessionResponse,
+  type AsrStatusEvent,
+  type AsrTranscriptEvent,
+  type AsrErrorEvent,
+  type AsrEvent,
+} from "./asr";
+
+export {
+  AsrSessionRequestSchema,
+  AsrAudioRequestSchema,
+  validateAsrSessionRequest,
+  validateAsrAudioRequest,
+} from "./asr-schemas";

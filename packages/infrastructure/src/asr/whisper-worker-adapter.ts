@@ -1,12 +1,10 @@
-// packages/infrastructure/src/asr/whisper-worker-adapter.ts
-
-import { spawn, ChildProcess } from "child_process";
+import {
+  spawn,
+  type ChildProcess,
+} from "child_process";
 import { EventEmitter } from "events";
 import { StringDecoder } from "string_decoder";
 
-/**
- * ASR Worker 消息类型
- */
 export interface AsrMessage {
   readonly type: string;
   readonly session_id?: string;
@@ -22,102 +20,189 @@ export interface AsrMessage {
   readonly message?: string;
 }
 
-/**
- * ASR Worker 适配器
- */
-export class WhisperWorkerAdapter extends EventEmitter {
-  private process: ChildProcess | null = null;
-  private isReady: boolean = false;
-  private sequenceCounter: number = 0;
-  private stdoutBuffer: string = "";
-  private stdoutDecoder: StringDecoder = new StringDecoder("utf8");
+export interface WhisperWorkerLaunchOptions {
+  readonly engine: "mock" | "faster-whisper";
+  readonly modelName: string;
+  readonly device: string;
+  readonly computeType: string;
+}
 
-  /**
-   * 启动 Worker
-   */
-  async start(): Promise<void> {
+export interface WhisperWorkerError {
+  readonly sessionId: string;
+  readonly errorCode: string;
+  readonly message: string;
+}
+
+export interface WhisperWorkerSpawnOptions {
+  readonly cwd: string;
+  readonly stdio: readonly ["pipe", "pipe", "pipe"];
+}
+
+export type WhisperWorkerSpawnProcess = (
+  command: string,
+  args: readonly string[],
+  options: WhisperWorkerSpawnOptions,
+) => ChildProcess;
+
+export interface WhisperWorkerAdapterOptions {
+  readonly workerCwd: string;
+  readonly startupTimeoutMs?: number;
+  readonly spawnProcess?: WhisperWorkerSpawnProcess;
+}
+
+export class WhisperWorkerAdapter extends EventEmitter {
+  private readonly options: WhisperWorkerAdapterOptions;
+  private process: ChildProcess | null = null;
+  private ready = false;
+  private sequenceCounter = 0;
+  private stdoutBuffer = "";
+  private stdoutDecoder = new StringDecoder("utf8");
+  private startupTimer: NodeJS.Timeout | null = null;
+  private startupPromise: Promise<void> | null = null;
+  private resolveStartup: (() => void) | null = null;
+  private rejectStartup: ((error: Error) => void) | null = null;
+
+  constructor(options: WhisperWorkerAdapterOptions) {
+    super();
+    this.options = options;
+  }
+
+  start(options: WhisperWorkerLaunchOptions): Promise<void> {
     if (this.process) {
-      return;
+      return this.startupPromise ?? Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
-      this.process = spawn("uv", ["run", "python", "-m", "asr_worker.main"], {
-        cwd: "workers/asr",
+    this.ready = false;
+    this.sequenceCounter = 0;
+    this.resetStdoutBuffer();
+
+    const spawnProcess = this.options.spawnProcess ?? spawn;
+    const args = [
+      "run",
+      "python",
+      "-m",
+      "asr_worker.main",
+      "--engine",
+      options.engine,
+      "--model",
+      options.modelName,
+      "--device",
+      options.device,
+      "--compute-type",
+      options.computeType,
+    ];
+
+    this.startupPromise = new Promise<void>((resolve, reject) => {
+      this.resolveStartup = resolve;
+      this.rejectStartup = reject;
+    });
+
+    let child: ChildProcess;
+    try {
+      child = spawnProcess("uv", args, {
+        cwd: this.options.workerCwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
-
-      this.process.stdout?.on("data", (data: Buffer) => {
-        this._handleStdoutChunk(data);
+    } catch (error) {
+      const spawnError = error instanceof Error ? error : new Error(String(error));
+      this.finishStartup(spawnError);
+      this.emitError({
+        sessionId: "",
+        errorCode: "WORKER_SPAWN_FAILED",
+        message: spawnError.message,
       });
-
-      this.process.stderr?.on("data", (data: Buffer) => {
-        console.error("ASR Worker stderr:", data.toString());
-      });
-
-      this.process.on("error", (error: Error) => {
-        this.emit("error", error);
-        reject(error);
-      });
-
-      this.process.on("exit", (code: number | null) => {
-        this.emit("exit", code);
-        this.process = null;
-        this.isReady = false;
-        this.resetStdoutBuffer();
-      });
-
-      // 等待 ready 状态
-      this.once("ready", () => {
-        resolve();
-      });
-
-      // 超时处理
-      setTimeout(() => {
-        if (!this.isReady) {
-          reject(new Error("ASR Worker startup timeout"));
-        }
-      }, 5000);
-    });
-  }
-
-  /**
-   * 停止 Worker
-   */
-  stop(): void {
-    if (this.process) {
-      this.process.kill();
-      this.process = null;
-      this.isReady = false;
+      return this.startupPromise;
     }
-    this.resetStdoutBuffer();
+
+    this.process = child;
+
+    child.stdout?.on("data", (data: Buffer) => {
+      if (this.process === child) {
+        this._handleStdoutChunk(data);
+      }
+    });
+
+    child.stderr?.on("data", (data: Buffer) => {
+      console.error("ASR Worker stderr:", data.toString());
+    });
+
+    child.stdin?.on("error", (error: Error) => {
+      this.handleProcessError(child, error);
+    });
+
+    child.on("error", (error: Error) => {
+      this.handleProcessError(child, error);
+    });
+
+    child.on("exit", (code: number | null) => {
+      if (this.process !== child) {
+        return;
+      }
+      const wasStarting = !this.ready;
+      this.clearProcess(child);
+      if (wasStarting) {
+        this.finishStartup(
+          new Error(`ASR Worker exited before ready (code ${String(code)})`),
+        );
+      }
+      this.emit("exit", code);
+    });
+
+    const startupTimeoutMs = this.options.startupTimeoutMs ?? 5_000;
+    this.startupTimer = setTimeout(() => {
+      if (this.process !== child || this.ready) {
+        return;
+      }
+      const error = new Error("ASR Worker startup timeout");
+      this.clearProcess(child);
+      this.finishStartup(error);
+      child.kill();
+    }, startupTimeoutMs);
+
+    return this.startupPromise;
   }
 
-  /**
-   * 发送音频数据
-   */
-  sendAudio(sessionId: string, audioData: string, sampleRate: number = 16000, channels: number = 1): void {
-    if (!this.process || !this.isReady) {
+  stop(): void {
+    const child = this.process;
+    this.process = null;
+    this.ready = false;
+    this.sequenceCounter = 0;
+    this.resetStdoutBuffer();
+
+    if (this.rejectStartup) {
+      this.finishStartup(new Error("ASR Worker stopped before ready"));
+    } else {
+      this.clearStartupTimer();
+    }
+
+    child?.kill();
+  }
+
+  sendAudio(
+    sessionId: string,
+    audioData: string,
+    sampleRate: number = 16000,
+    channels: number = 1,
+  ): void {
+    if (!this.process || !this.ready) {
       throw new Error("ASR Worker is not ready");
     }
 
-    this.sequenceCounter++;
+    this.sequenceCounter += 1;
     const message = {
       type: "audio",
       session_id: sessionId,
       sequence: this.sequenceCounter,
       audio_data: audioData,
       sample_rate: sampleRate,
-      channels: channels,
+      channels,
     };
 
-    this.process.stdin?.write(JSON.stringify(message) + "\n");
+    this.process.stdin?.write(`${JSON.stringify(message)}\n`);
   }
 
-  /**
-   * 检查是否就绪
-   */
   getIsReady(): boolean {
-    return this.isReady;
+    return this.ready;
   }
 
   private _handleStdoutChunk(data: Buffer): void {
@@ -137,23 +222,93 @@ export class WhisperWorkerAdapter extends EventEmitter {
     this.stdoutDecoder = new StringDecoder("utf8");
   }
 
-  /**
-   * 处理消息
-   */
   private _handleMessage(line: string): void {
     try {
       const message: AsrMessage = JSON.parse(line);
 
       if (message.type === "status" && message.status === "ready") {
-        this.isReady = true;
+        this.ready = true;
+        this.finishStartup();
         this.emit("ready");
       } else if (message.type === "result") {
         this.emit("result", message);
       } else if (message.type === "error") {
-        this.emit("error", new Error(message.error_message || "Unknown error"));
+        const workerError: WhisperWorkerError = {
+          sessionId: message.session_id ?? "",
+          errorCode: message.error_code ?? "WORKER_ERROR",
+          message: message.error_message ?? "Unknown error",
+        };
+        if (this.rejectStartup) {
+          const child = this.process;
+          if (child) {
+            this.clearProcess(child);
+          }
+          this.finishStartup(new Error(workerError.message));
+          child?.kill();
+        }
+        this.emitError(workerError);
       }
-    } catch (error) {
-      this.emit("error", new Error(`Failed to parse message: ${line}`));
+    } catch {
+      this.emitError({
+        sessionId: "",
+        errorCode: "WORKER_PROTOCOL_ERROR",
+        message: `Failed to parse message: ${line}`,
+      });
     }
   }
+
+  private clearProcess(child: ChildProcess): void {
+    if (this.process === child) {
+      this.process = null;
+      this.ready = false;
+      this.resetStdoutBuffer();
+    }
+    this.clearStartupTimer();
+  }
+
+  private handleProcessError(child: ChildProcess, error: Error): void {
+    if (this.process !== child) {
+      return;
+    }
+    this.clearProcess(child);
+    this.finishStartup(error);
+    child.kill();
+    this.emitError({
+      sessionId: "",
+      errorCode: getSystemErrorCode(error),
+      message: error.message,
+    });
+  }
+
+  private finishStartup(error?: Error): void {
+    const resolve = this.resolveStartup;
+    const reject = this.rejectStartup;
+    this.resolveStartup = null;
+    this.rejectStartup = null;
+    this.clearStartupTimer();
+
+    if (error) {
+      reject?.(error);
+    } else {
+      resolve?.();
+    }
+  }
+
+  private clearStartupTimer(): void {
+    if (this.startupTimer) {
+      clearTimeout(this.startupTimer);
+      this.startupTimer = null;
+    }
+  }
+
+  private emitError(error: WhisperWorkerError): void {
+    if (this.listenerCount("error") > 0) {
+      this.emit("error", error);
+    }
+  }
+}
+
+function getSystemErrorCode(error: Error): string {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code && code.length > 0 ? code : "WORKER_PROCESS_ERROR";
 }

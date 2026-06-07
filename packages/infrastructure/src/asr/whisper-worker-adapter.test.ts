@@ -1,46 +1,315 @@
-// packages/infrastructure/src/asr/whisper-worker-adapter.test.ts
+import { EventEmitter } from "events";
+import { PassThrough } from "stream";
+import type { ChildProcess } from "child_process";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
+import {
+  WhisperWorkerAdapter,
+  type WhisperWorkerError,
+  type WhisperWorkerLaunchOptions,
+  type WhisperWorkerSpawnProcess,
+} from "./whisper-worker-adapter";
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { WhisperWorkerAdapter } from "./whisper-worker-adapter";
+const launchOptions: WhisperWorkerLaunchOptions = {
+  engine: "faster-whisper",
+  modelName: "small.en",
+  device: "cpu",
+  computeType: "int8",
+};
+
+type FakeProcess = ChildProcess & {
+  stdin: PassThrough;
+  stdout: PassThrough;
+  stderr: PassThrough;
+  kill: ReturnType<typeof vi.fn>;
+};
+
+function createProcess(): FakeProcess {
+  const process = new EventEmitter() as FakeProcess;
+  Object.assign(process, {
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    kill: vi.fn(() => true),
+  });
+  return process;
+}
 
 describe("WhisperWorkerAdapter", () => {
+  let processes: FakeProcess[];
+  let spawnProcess: Mock<WhisperWorkerSpawnProcess>;
   let adapter: WhisperWorkerAdapter;
 
   beforeEach(() => {
-    adapter = new WhisperWorkerAdapter();
+    processes = [];
+    spawnProcess = vi.fn(() => {
+      const process = createProcess();
+      processes.push(process);
+      return process;
+    });
+    adapter = new WhisperWorkerAdapter({
+      workerCwd: "/workspace/workers/asr",
+      startupTimeoutMs: 100,
+      spawnProcess,
+    });
   });
 
   afterEach(() => {
     adapter.stop();
+    vi.useRealTimers();
   });
 
-  it("initializes with not ready state", () => {
-    expect(adapter.getIsReady()).toBe(false);
-  });
+  async function startReady(processIndex = processes.length): Promise<FakeProcess> {
+    const started = adapter.start(launchOptions);
+    const process = processes[processIndex]!;
+    process.stdout!.write('{"type":"status","status":"ready"}\n');
+    await started;
+    return process;
+  }
 
-  it("emits ready event", () => {
-    const readyCallback = vi.fn();
-    adapter.on("ready", readyCallback);
+  it("starts uv with explicit Worker launch options and cwd", async () => {
+    await startReady();
 
-    // 模拟 ready 消息
-    adapter["_handleMessage"]('{"type": "status", "status": "ready"}');
-
-    expect(readyCallback).toHaveBeenCalled();
+    expect(spawnProcess).toHaveBeenCalledWith(
+      "uv",
+      [
+        "run",
+        "python",
+        "-m",
+        "asr_worker.main",
+        "--engine",
+        "faster-whisper",
+        "--model",
+        "small.en",
+        "--device",
+        "cpu",
+        "--compute-type",
+        "int8",
+      ],
+      {
+        cwd: "/workspace/workers/asr",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
     expect(adapter.getIsReady()).toBe(true);
   });
 
-  it("emits result event", () => {
-    const resultCallback = vi.fn();
-    adapter.on("result", resultCallback);
+  it("emits a structured error when spawning throws synchronously", async () => {
+    const errorListener = vi.fn();
+    adapter.on("error", errorListener);
+    spawnProcess.mockImplementationOnce(() => {
+      throw new Error("uv not found");
+    });
 
-    // 模拟 result 消息
-    adapter["_handleMessage"]('{"type": "result", "session_id": "session-001", "sequence": 1, "text": "Hello", "confidence": 0.95, "start_ms": 0, "end_ms": 1000, "is_final": true}');
-
-    expect(resultCallback).toHaveBeenCalled();
-    expect(resultCallback.mock.calls[0]![0].text).toBe("Hello");
+    await expect(adapter.start(launchOptions)).rejects.toThrow("uv not found");
+    expect(errorListener).toHaveBeenCalledWith({
+      sessionId: "",
+      errorCode: "WORKER_SPAWN_FAILED",
+      message: "uv not found",
+    });
   });
 
-  it("waits for a complete line across stdout chunks", () => {
+  it("sends monotonically increasing audio sequences during one run", async () => {
+    const process = await startReady();
+    const writes: string[] = [];
+    process.stdin!.on("data", (data: Buffer) => writes.push(data.toString()));
+
+    adapter.sendAudio("session-1", "YQ==");
+    adapter.sendAudio("session-1", "Yg==");
+
+    expect(writes.map((line) => JSON.parse(line).sequence)).toEqual([1, 2]);
+  });
+
+  it("resets the sequence after stop and restart", async () => {
+    const firstProcess = await startReady();
+    const firstWrites: string[] = [];
+    firstProcess.stdin!.on("data", (data: Buffer) => firstWrites.push(data.toString()));
+    adapter.sendAudio("session-1", "YQ==");
+    adapter.sendAudio("session-1", "Yg==");
+
+    adapter.stop();
+
+    const secondProcess = await startReady();
+    const secondWrites: string[] = [];
+    secondProcess.stdin!.on("data", (data: Buffer) => secondWrites.push(data.toString()));
+    adapter.sendAudio("session-2", "Yw==");
+
+    expect(JSON.parse(firstWrites[1]!).sequence).toBe(2);
+    expect(JSON.parse(secondWrites[0]!).sequence).toBe(1);
+  });
+
+  it("kills and clears a Worker that exceeds the startup timeout", async () => {
+    vi.useFakeTimers();
+    const started = adapter.start(launchOptions);
+    const process = processes[0]!;
+
+    const rejection = expect(started).rejects.toThrow("ASR Worker startup timeout");
+    await vi.advanceTimersByTimeAsync(100);
+    await rejection;
+
+    expect(process.kill).toHaveBeenCalledOnce();
+    expect(adapter.getIsReady()).toBe(false);
+
+    const restarted = adapter.start(launchOptions);
+    const replacement = processes[1]!;
+    replacement.stdout!.write('{"type":"status","status":"ready"}\n');
+    await restarted;
+    expect(adapter.getIsReady()).toBe(true);
+  });
+
+  it("clears the startup timeout after ready", async () => {
+    vi.useFakeTimers();
+    const started = adapter.start(launchOptions);
+    const process = processes[0]!;
+    process.stdout!.write('{"type":"status","status":"ready"}\n');
+    await started;
+
+    await vi.advanceTimersByTimeAsync(101);
+
+    expect(process.kill).not.toHaveBeenCalled();
+    expect(adapter.getIsReady()).toBe(true);
+  });
+
+  it("cleans state on process error without throwing when no error listener exists", async () => {
+    const started = adapter.start(launchOptions);
+    const process = processes[0]!;
+    const failure = new Error("spawn failed");
+
+    expect(() => process.emit("error", failure)).not.toThrow();
+    await expect(started).rejects.toThrow("spawn failed");
+    expect(adapter.getIsReady()).toBe(false);
+
+    await startReady();
+    expect(adapter.getIsReady()).toBe(true);
+  });
+
+  it("forwards process errors to registered error listeners", async () => {
+    const errorListener = vi.fn();
+    adapter.on("error", errorListener);
+    const started = adapter.start(launchOptions);
+    const process = processes[0]!;
+    const failure = new Error("spawn failed");
+
+    process.emit("error", failure);
+    await expect(started).rejects.toThrow("spawn failed");
+
+    expect(errorListener).toHaveBeenCalledWith({
+      sessionId: "",
+      errorCode: "WORKER_PROCESS_ERROR",
+      message: "spawn failed",
+    });
+  });
+
+  it("handles stdin EPIPE without an unhandled error and clears the Worker", async () => {
+    const process = await startReady();
+    const failure = Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+
+    expect(() => process.stdin.emit("error", failure)).not.toThrow();
+
+    expect(process.kill).toHaveBeenCalledOnce();
+    expect(adapter.getIsReady()).toBe(false);
+    expect(() => adapter.sendAudio("session-1", "YQ==")).toThrow(
+      "ASR Worker is not ready",
+    );
+  });
+
+  it("reports stdin EPIPE to registered error listeners", async () => {
+    const errorListener = vi.fn();
+    adapter.on("error", errorListener);
+    const process = await startReady();
+    const failure = Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+
+    process.stdin.emit("error", failure);
+
+    expect(errorListener).toHaveBeenCalledWith({
+      sessionId: "",
+      errorCode: "EPIPE",
+      message: "write EPIPE",
+    });
+    expect(process.kill).toHaveBeenCalledOnce();
+    expect(adapter.getIsReady()).toBe(false);
+  });
+
+  it("ignores a late stdin EPIPE after the Worker has exited", async () => {
+    const errorListener = vi.fn();
+    adapter.on("error", errorListener);
+    const process = await startReady();
+    const failure = Object.assign(new Error("write EPIPE"), { code: "EPIPE" });
+
+    process.emit("exit", 1);
+
+    expect(() => process.stdin.emit("error", failure)).not.toThrow();
+    expect(errorListener).not.toHaveBeenCalled();
+    expect(adapter.getIsReady()).toBe(false);
+  });
+
+  it("cleans a structured startup error and permits restart", async () => {
+    vi.useFakeTimers();
+    const errorListener = vi.fn();
+    adapter.on("error", errorListener);
+    const started = adapter.start(launchOptions);
+    const process = processes[0]!;
+
+    process.stdout.write(
+      '{"type":"error","session_id":"","error_code":"MODEL_LOAD_FAILED","error_message":"Model failed to load"}\n',
+    );
+
+    await expect(started).rejects.toThrow("Model failed to load");
+    expect(process.kill).toHaveBeenCalledOnce();
+    expect(errorListener).toHaveBeenCalledWith(
+      {
+        sessionId: "",
+        errorCode: "MODEL_LOAD_FAILED",
+        message: "Model failed to load",
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(101);
+    const restarted = adapter.start(launchOptions);
+    processes[1]!.stdout.write('{"type":"status","status":"ready"}\n');
+    await restarted;
+    expect(adapter.getIsReady()).toBe(true);
+  });
+
+  it("cleans state on exit and ignores a stale exit after restart", async () => {
+    const firstProcess = await startReady();
+    adapter.stop();
+    await startReady();
+
+    firstProcess.emit("exit", 0);
+    expect(adapter.getIsReady()).toBe(true);
+
+    processes[1]!.emit("exit", 1);
+    expect(adapter.getIsReady()).toBe(false);
+  });
+
+  it("rejects an early exit, clears its timeout, and permits restart", async () => {
+    vi.useFakeTimers();
+    const started = adapter.start(launchOptions);
+    const process = processes[0]!;
+
+    process.emit("exit", 2);
+    await expect(started).rejects.toThrow(
+      "ASR Worker exited before ready (code 2)",
+    );
+    await vi.advanceTimersByTimeAsync(101);
+    expect(process.kill).not.toHaveBeenCalled();
+
+    const restarted = adapter.start(launchOptions);
+    processes[1]!.stdout.write('{"type":"status","status":"ready"}\n');
+    await restarted;
+    expect(adapter.getIsReady()).toBe(true);
+  });
+
+  it("waits for a complete UTF-8 line across stdout chunks", async () => {
+    const process = await startReady();
     const resultCallback = vi.fn();
     const errorCallback = vi.fn();
     adapter.on("result", resultCallback);
@@ -51,48 +320,52 @@ describe("WhisperWorkerAdapter", () => {
     );
     const splitIndex = message.indexOf(Buffer.from("你")) + 1;
 
-    adapter["_handleStdoutChunk"](message.subarray(0, splitIndex));
-
+    process.stdout.write(message.subarray(0, splitIndex));
     expect(resultCallback).not.toHaveBeenCalled();
     expect(errorCallback).not.toHaveBeenCalled();
 
-    adapter["_handleStdoutChunk"](message.subarray(splitIndex));
-
+    process.stdout.write(message.subarray(splitIndex));
     expect(resultCallback).toHaveBeenCalledOnce();
     expect(resultCallback.mock.calls[0]![0].text).toBe("你好");
     expect(errorCallback).not.toHaveBeenCalled();
   });
 
-  it("handles multiple complete lines in one stdout chunk", () => {
-    const readyCallback = vi.fn();
+  it("handles multiple structured messages in one stdout chunk", async () => {
+    const process = await startReady();
     const resultCallback = vi.fn();
-    adapter.on("ready", readyCallback);
     adapter.on("result", resultCallback);
 
-    adapter["_handleStdoutChunk"](
+    process.stdout.write(
       Buffer.from(
-        '{"type":"status","status":"ready"}\n'
-          + '{"type":"result","text":"Hello","sequence":1}\n',
+        '{"type":"result","text":"Hello","sequence":1}\n'
+          + '{"type":"result","text":"world","sequence":2}\n',
       ),
     );
 
-    expect(readyCallback).toHaveBeenCalledOnce();
-    expect(resultCallback).toHaveBeenCalledOnce();
+    expect(resultCallback).toHaveBeenCalledTimes(2);
   });
 
-  it("emits error event", () => {
+  it("emits structured Worker errors when a listener is registered", async () => {
+    const process = await startReady();
     const errorCallback = vi.fn();
     adapter.on("error", errorCallback);
 
-    // 模拟 error 消息
-    adapter["_handleMessage"]('{"type": "error", "session_id": "session-001", "error_code": "INVALID_AUDIO", "error_message": "Invalid audio format"}');
+    process.stdout.write(
+      '{"type":"error","session_id":"session-1","error_code":"INVALID_AUDIO","error_message":"Invalid audio format"}\n',
+    );
 
-    expect(errorCallback).toHaveBeenCalled();
+    expect(errorCallback).toHaveBeenCalledWith(
+      {
+        sessionId: "session-1",
+        errorCode: "INVALID_AUDIO",
+        message: "Invalid audio format",
+      } satisfies WhisperWorkerError,
+    );
   });
 
   it("throws when sending audio before ready", () => {
-    expect(() => {
-      adapter.sendAudio("session-001", "base64data");
-    }).toThrow("ASR Worker is not ready");
+    expect(() => adapter.sendAudio("session-001", "YQ==")).toThrow(
+      "ASR Worker is not ready",
+    );
   });
 });

@@ -13,6 +13,9 @@ importers:
       '@simulcast/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@simulcast/infrastructure':
+        specifier: workspace:*
+        version: link:../../packages/infrastructure
       react:
         specifier: 19.2.7
         version: 19.2.7

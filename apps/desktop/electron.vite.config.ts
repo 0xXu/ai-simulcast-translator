@@ -5,7 +5,10 @@ export default defineConfig({
   main: {
     plugins: [
       externalizeDepsPlugin({
-        exclude: ["@simulcast/contracts"],
+        exclude: [
+          "@simulcast/contracts",
+          "@simulcast/infrastructure",
+        ],
       }),
     ],
   },
