@@ -6,6 +6,7 @@ import type {
   AppStatus,
   AsrEvent,
   AsrSessionResponse,
+  TranslationSessionLanguages,
 } from "@simulcast/contracts";
 
 describe("PreloadApi Types", () => {
@@ -23,7 +24,10 @@ describe("PreloadApi Types", () => {
 
   it("exposes exact ASR method types", () => {
     expectTypeOf<PreloadApi["startAsrSession"]>().toEqualTypeOf<
-      (sessionId: string) => Promise<AsrSessionResponse>
+      (
+        sessionId: string,
+        languages?: TranslationSessionLanguages,
+      ) => Promise<AsrSessionResponse>
     >();
     expectTypeOf<PreloadApi["sendAsrAudio"]>().toEqualTypeOf<
       (

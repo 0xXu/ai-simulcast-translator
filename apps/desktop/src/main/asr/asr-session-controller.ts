@@ -1,8 +1,11 @@
-import type {
-  AsrAudioRequest,
-  AsrEvent,
-  AsrSessionResponse,
-  AsrSessionState,
+import {
+  DEFAULT_SESSION_LANGUAGES,
+  isLanguageCode,
+  type TranslationSessionLanguages,
+  type AsrAudioRequest,
+  type AsrEvent,
+  type AsrSessionResponse,
+  type AsrSessionState,
 } from "@simulcast/contracts";
 import type {
   AsrMessage,
@@ -74,6 +77,12 @@ export class AsrSessionController {
       startMs: message.start_ms,
       endMs: message.end_ms,
       isFinal: message.is_final,
+      ...(isLanguageCode(message.detected_language)
+        ? { detectedLanguage: message.detected_language }
+        : {}),
+      ...(typeof message.language_probability === "number"
+        ? { languageProbability: message.language_probability }
+        : {}),
     });
   };
 
@@ -134,7 +143,10 @@ export class AsrSessionController {
     this.worker.on("exit", this.handleExit);
   }
 
-  startSession(sessionId: string): Promise<AsrSessionResponse> {
+  startSession(
+    sessionId: string,
+    languages: TranslationSessionLanguages = DEFAULT_SESSION_LANGUAGES,
+  ): Promise<AsrSessionResponse> {
     if (this.activeSessionId && this.activeSessionId !== sessionId) {
       return Promise.reject(new Error("已有 ASR 会话正在运行"));
     }
@@ -164,19 +176,24 @@ export class AsrSessionController {
       sessionId,
       state: "starting",
       message: "正在启动本地语音识别",
+      languages,
     });
 
-    const startupPromise = this.runStartup(context);
+    const startupPromise = this.runStartup(context, languages);
     this.startupPromise = startupPromise;
     return startupPromise;
   }
 
   private async runStartup(
     context: StartupContext,
+    languages: TranslationSessionLanguages,
   ): Promise<AsrSessionResponse> {
     const { sessionId, generation } = context;
     try {
-      await this.worker.start(this.launch);
+      await this.worker.start({
+        ...this.launch,
+        language: languages.sourceLanguage,
+      });
       if (!this.isCurrentStartup(sessionId, generation)) {
         if (context.canceled) {
           return { sessionId, state: "idle" };
@@ -190,6 +207,7 @@ export class AsrSessionController {
         sessionId,
         state: "ready",
         message: "本地语音识别已就绪",
+        languages,
       });
       return { sessionId, state: "ready" };
     } catch (error) {

@@ -8,12 +8,15 @@ import {
   type TranslatorPort,
 } from "@simulcast/application";
 import { SubtitleTimeline, type SubtitleSegment } from "@simulcast/domain";
-import type {
-  AsrEvent,
-  AsrTranscriptEvent,
-  SubtitleSnapshotChange,
-  SubtitleSnapshotEvent,
-  SubtitleSnapshotSegment,
+import {
+  DEFAULT_SESSION_LANGUAGES,
+  type LanguageCode,
+  type TranslationSessionLanguages,
+  type AsrEvent,
+  type AsrTranscriptEvent,
+  type SubtitleSnapshotChange,
+  type SubtitleSnapshotEvent,
+  type SubtitleSnapshotSegment,
 } from "@simulcast/contracts";
 
 export const SUBTITLE_IPC_CHANNELS = Object.freeze({
@@ -42,6 +45,8 @@ interface SubtitleSessionState {
   lastAppliedRequestId: number;
   currentAudioTimeMs: number;
   flushTimer: ReturnType<typeof setTimeout> | null;
+  readonly languages: TranslationSessionLanguages;
+  detectedSourceLanguage: LanguageCode | null;
 }
 
 export class SubtitleSessionBridge {
@@ -62,7 +67,10 @@ export class SubtitleSessionBridge {
 
   async handleAsrEvent(event: AsrEvent): Promise<void> {
     if (event.type === "status" && event.state === "starting") {
-      this.resetSession(event.sessionId);
+      this.resetSession(
+        event.sessionId,
+        event.languages ?? DEFAULT_SESSION_LANGUAGES,
+      );
       return;
     }
 
@@ -89,6 +97,14 @@ export class SubtitleSessionBridge {
     }
 
     const session = this.getSession(event.sessionId);
+    if (
+      session.languages.sourceLanguage === "auto"
+      && session.detectedSourceLanguage === null
+      && event.detectedLanguage
+      && (event.languageProbability ?? 0) >= 0.5
+    ) {
+      session.detectedSourceLanguage = event.detectedLanguage;
+    }
     const rawWindow = toRawTranscriptWindow(event, text);
     session.currentAudioTimeMs = Math.max(
       session.currentAudioTimeMs,
@@ -103,6 +119,10 @@ export class SubtitleSessionBridge {
 
     const submission = session.coordinator.submit({
       sessionId: event.sessionId,
+      sourceLanguage: session.languages.sourceLanguage === "auto"
+        ? session.detectedSourceLanguage ?? "unknown"
+        : session.languages.sourceLanguage,
+      targetLanguage: session.languages.targetLanguage,
       rawTranscriptWindows: session.rawTranscriptWindows,
       currentSubtitles: session.timeline.getSegments(),
       currentAudioTimeMs: session.currentAudioTimeMs,
@@ -129,7 +149,15 @@ export class SubtitleSessionBridge {
       return existing;
     }
 
-    const state: SubtitleSessionState = {
+    const state = this.createSessionState(DEFAULT_SESSION_LANGUAGES);
+    this.sessions.set(sessionId, state);
+    return state;
+  }
+
+  private createSessionState(
+    languages: TranslationSessionLanguages,
+  ): SubtitleSessionState {
+    return {
       timeline: new SubtitleTimeline(),
       coordinator: new SubtitleTranslationCoordinator({
         translator: this.translator,
@@ -142,17 +170,22 @@ export class SubtitleSessionBridge {
       lastAppliedRequestId: 0,
       currentAudioTimeMs: 0,
       flushTimer: null,
+      languages,
+      detectedSourceLanguage: languages.sourceLanguage === "auto"
+        ? null
+        : languages.sourceLanguage,
     };
-    this.sessions.set(sessionId, state);
-    return state;
   }
 
-  private resetSession(sessionId: string): void {
+  private resetSession(
+    sessionId: string,
+    languages: TranslationSessionLanguages,
+  ): void {
     const existing = this.sessions.get(sessionId);
     if (existing?.flushTimer) {
       clearTimeout(existing.flushTimer);
     }
-    this.sessions.delete(sessionId);
+    this.sessions.set(sessionId, this.createSessionState(languages));
   }
 
   private async applyCoordinatorResult(

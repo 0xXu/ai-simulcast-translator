@@ -35,6 +35,8 @@ describe("MimoClient", () => {
       thinking: { type: "disabled" },
     });
     expect(body.messages).toHaveLength(2);
+    expect(body.messages[0].content).toContain("从英语翻译为日语");
+    expect(body.messages[0].content).not.toContain("简体中文字幕");
     const userPayload = JSON.parse(body.messages[1].content);
     expect(userPayload).toMatchObject({
       requestId: 1,
@@ -149,6 +151,8 @@ function request(): SubtitleTranslationRequest {
   return {
     requestId: 1,
     sessionId: "session-1",
+    sourceLanguage: "en",
+    targetLanguage: "ja",
     rawTranscriptWindows: [
       {
         sequence: 1,

@@ -6,7 +6,7 @@ import math
 import numpy as np
 import pytest
 
-from asr_worker.faster_whisper_engine import FasterWhisperEngine
+from asr_worker.faster_whisper_engine import FasterWhisperConfig, FasterWhisperEngine
 from asr_worker.protocol import AudioMessage
 
 
@@ -30,13 +30,30 @@ class FakeSegment:
 
 
 class FakeModel:
-    def __init__(self, segments: list[FakeSegment]) -> None:
+    def __init__(
+        self,
+        segments: list[FakeSegment],
+        language: str = "en",
+        language_probability: float = 0.91,
+    ) -> None:
         self.segments = segments
+        self.language = language
+        self.language_probability = language_probability
         self.inputs: list[np.ndarray] = []
+        self.kwargs: list[dict[str, object]] = []
 
     def transcribe(self, audio: np.ndarray, **kwargs: object):
         self.inputs.append(audio.copy())
-        return iter(self.segments), object()
+        self.kwargs.append(kwargs)
+        info = type(
+            "TranscriptionInfo",
+            (),
+            {
+                "language": self.language,
+                "language_probability": self.language_probability,
+            },
+        )()
+        return iter(self.segments), info
 
 
 # ---------------------------------------------------------------------------
@@ -56,13 +73,19 @@ def audio_message(sequence: int, chunks: int = 1) -> AudioMessage:
     )
 
 
-def _make_engine(segments: list[FakeSegment] | None = None) -> tuple[FasterWhisperEngine, FakeModel]:
+def _make_engine(
+    segments: list[FakeSegment] | None = None,
+    config: FasterWhisperConfig | None = None,
+) -> tuple[FasterWhisperEngine, FakeModel]:
     if segments is None:
         segments = [
             FakeSegment(text="hello", start=0.0, end=1.0, avg_logprob=-0.5),
         ]
     model = FakeModel(segments)
-    engine = FasterWhisperEngine(model_factory=lambda **kw: model)
+    engine = FasterWhisperEngine(
+        config=config,
+        model_factory=lambda **kw: model,
+    )
     return engine, model
 
 
@@ -289,3 +312,37 @@ def test_is_final_always_false():
     result = _feed(engine, 4)
     assert result is not None
     assert result.is_final is False
+
+
+def test_auto_language_detection_omits_language_constraint():
+    engine, model = _make_engine(
+        config=FasterWhisperConfig(model_name="small", language=None),
+    )
+
+    result = _feed(engine, 4)
+
+    assert result is not None
+    assert "language" not in model.kwargs[0]
+    assert result.detected_language == "en"
+    assert result.language_probability == pytest.approx(0.91)
+
+
+def test_manual_language_is_passed_to_transcribe():
+    engine, model = _make_engine(
+        config=FasterWhisperConfig(model_name="small", language="ja"),
+    )
+
+    _feed(engine, 4)
+
+    assert model.kwargs[0]["language"] == "ja"
+
+
+@pytest.mark.parametrize("language", [None, "ja"])
+def test_english_only_model_rejects_multilingual_configuration(language):
+    with pytest.raises(ValueError, match="multilingual Whisper model"):
+        FasterWhisperEngine(
+            config=FasterWhisperConfig(
+                model_name="small.en",
+                language=language,
+            ),
+        )

@@ -4,6 +4,7 @@ import {
   type AsrAudioRequest,
   type AsrEvent,
   type AsrSessionResponse,
+  type TranslationSessionLanguages,
 } from "@simulcast/contracts";
 import type { WhisperWorkerLaunchOptions } from "@simulcast/infrastructure";
 import { ipcMain } from "electron";
@@ -26,7 +27,10 @@ export interface AsrIpcMain {
 }
 
 export interface AsrSessionControllerPort {
-  startSession(sessionId: string): Promise<AsrSessionResponse>;
+  startSession(
+    sessionId: string,
+    languages: TranslationSessionLanguages,
+  ): Promise<AsrSessionResponse>;
   sendAudio(request: AsrAudioRequest): void;
   stopSession(sessionId: string): AsrSessionResponse;
   dispose(): void;
@@ -44,7 +48,8 @@ export function resolveAsrLaunchOptions(
 ): WhisperWorkerLaunchOptions {
   return {
     engine: "faster-whisper",
-    modelName: env.WHISPER_MODEL ?? "small.en",
+    modelName: env.WHISPER_MODEL ?? "small",
+    language: "auto",
     device: env.WHISPER_DEVICE ?? "cpu",
     computeType: env.WHISPER_COMPUTE_TYPE ?? "int8",
   };
@@ -56,7 +61,7 @@ export function registerAsrHandlers(
 ): () => void {
   const handleStart: InvokeHandler = (_event, input) => {
     const request = validateAsrSessionRequest(input);
-    return controller.startSession(request.sessionId);
+    return controller.startSession(request.sessionId, request.languages);
   };
   const handleStop: InvokeHandler = (_event, input) => {
     const request = validateAsrSessionRequest(input);

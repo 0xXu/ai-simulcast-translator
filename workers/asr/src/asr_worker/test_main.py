@@ -141,8 +141,15 @@ class TestCreateEngine:
     def test_create_faster_whisper_engine(self):
         from .main import create_engine
         from .faster_whisper_engine import FasterWhisperEngine
-        engine = create_engine("faster-whisper", model_name="small.en", device="cpu", compute_type="int8")
+        engine = create_engine(
+            "faster-whisper",
+            model_name="small",
+            language="auto",
+            device="cpu",
+            compute_type="int8",
+        )
         assert isinstance(engine, FasterWhisperEngine)
+        assert engine._config.language is None
 
     def test_create_unknown_engine_raises(self):
         from .main import create_engine

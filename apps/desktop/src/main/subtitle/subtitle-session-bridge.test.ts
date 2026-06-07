@@ -1,5 +1,6 @@
 import type {
   AsrEvent,
+  AsrTranscriptEvent,
   SubtitleSnapshotEvent,
 } from "@simulcast/contracts";
 import type {
@@ -14,6 +15,43 @@ import {
 } from "./subtitle-session-bridge";
 
 describe("SubtitleSessionBridge", () => {
+  it("stabilizes automatic language detection for translation requests", async () => {
+    const translator: TranslatorPort = {
+      translate: vi.fn(async (request: SubtitleTranslationRequest) => ({
+        requestId: request.requestId,
+        subtitles: [],
+      })),
+    };
+    const bridge = new SubtitleSessionBridge({
+      translator,
+      publish: vi.fn(),
+      minRequestIntervalMs: 0,
+    });
+
+    await bridge.handleAsrEvent({
+      type: "status",
+      sessionId: "session-1",
+      state: "starting",
+      message: "starting",
+      languages: {
+        sourceLanguage: "auto",
+        targetLanguage: "ja",
+      },
+    });
+    await bridge.handleAsrEvent({
+      ...transcriptEvent({ text: "Hello" }),
+      detectedLanguage: "en",
+      languageProbability: 0.9,
+    });
+
+    expect(translator.translate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceLanguage: "en",
+        targetLanguage: "ja",
+      }),
+    );
+  });
+
   it("publishes translated subtitle snapshots from transcript events", async () => {
     const translator: TranslatorPort = {
       translate: vi.fn(async (request: SubtitleTranslationRequest) => ({
@@ -137,7 +175,9 @@ describe("publishSubtitleSnapshotToWindows", () => {
   });
 });
 
-function transcriptEvent(options: { readonly text: string }): AsrEvent {
+function transcriptEvent(
+  options: { readonly text: string },
+): AsrTranscriptEvent {
   return {
     type: "transcript",
     sessionId: "session-1",

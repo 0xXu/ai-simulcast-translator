@@ -17,7 +17,8 @@ import {
 
 const launch: WhisperWorkerLaunchOptions = {
   engine: "faster-whisper",
-  modelName: "small.en",
+  modelName: "small",
+  language: "auto",
   device: "cpu",
   computeType: "int8",
 };
@@ -112,31 +113,41 @@ describe("AsrSessionController", () => {
     controller = new AsrSessionController({ worker, publish, launch });
   });
 
+  const languages = {
+    sourceLanguage: "auto" as const,
+    targetLanguage: "zh" as const,
+  };
+
   it("starts one session, publishes lifecycle states, and is idempotent once ready", async () => {
-    await expect(controller.startSession("session-1")).resolves.toEqual({
+    await expect(controller.startSession("session-1", languages)).resolves.toEqual({
       sessionId: "session-1",
       state: "ready",
     });
-    await expect(controller.startSession("session-1")).resolves.toEqual({
+    await expect(controller.startSession("session-1", languages)).resolves.toEqual({
       sessionId: "session-1",
       state: "ready",
     });
 
     expect(worker.start).toHaveBeenCalledTimes(1);
-    expect(worker.start).toHaveBeenCalledWith(launch);
+    expect(worker.start).toHaveBeenCalledWith({
+      ...launch,
+      language: "auto",
+    });
     expect(publish).toHaveBeenNthCalledWith(1, {
       type: "status",
       sessionId: "session-1",
       state: "starting",
       message: "正在启动本地语音识别",
+      languages,
     });
     expect(publish).toHaveBeenNthCalledWith(2, {
       type: "status",
       sessionId: "session-1",
       state: "ready",
       message: "本地语音识别已就绪",
+      languages,
     });
-    await expect(controller.startSession("session-2")).rejects.toThrow(
+    await expect(controller.startSession("session-2", languages)).rejects.toThrow(
       "已有 ASR 会话正在运行",
     );
   });
@@ -320,6 +331,8 @@ describe("AsrSessionController", () => {
       start_ms: 120,
       end_ms: 840,
       is_final: true,
+      detected_language: "en",
+      language_probability: 0.96,
     });
     expect(publish).toHaveBeenCalledWith({
       type: "transcript",
@@ -330,6 +343,8 @@ describe("AsrSessionController", () => {
       startMs: 120,
       endMs: 840,
       isFinal: true,
+      detectedLanguage: "en",
+      languageProbability: 0.96,
     });
   });
 

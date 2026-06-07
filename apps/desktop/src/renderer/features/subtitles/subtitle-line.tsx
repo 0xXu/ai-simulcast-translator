@@ -21,7 +21,9 @@ export function SubtitleLine({
       <p className="translation" lang="zh-CN">
         {line.translatedText || line.sourceText}
       </p>
-      {showSource && line.sourceText ? (
+      {showSource
+        && line.sourceText
+        && line.sourceText !== line.translatedText ? (
         <p className="source" lang="en">
           {line.sourceText}
         </p>

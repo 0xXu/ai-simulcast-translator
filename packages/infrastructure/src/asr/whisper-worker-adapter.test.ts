@@ -19,7 +19,8 @@ import {
 
 const launchOptions: WhisperWorkerLaunchOptions = {
   engine: "faster-whisper",
-  modelName: "small.en",
+  modelName: "small",
+  language: "auto",
   device: "cpu",
   computeType: "int8",
 };
@@ -87,7 +88,9 @@ describe("WhisperWorkerAdapter", () => {
         "--engine",
         "faster-whisper",
         "--model",
-        "small.en",
+        "small",
+        "--language",
+        "auto",
         "--device",
         "cpu",
         "--compute-type",

@@ -4,11 +4,13 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { PreloadApi } from "./api";
 import {
   PROTOCOL_VERSION,
+  DEFAULT_SESSION_LANGUAGES,
   type AppStatus,
   type AsrAudioRequest,
   type AsrEvent,
   type AsrSessionRequest,
   type SubtitleSnapshotEvent,
+  type TranslationSessionLanguages,
 } from "@simulcast/contracts";
 
 const ASR_CHANNELS = Object.freeze({
@@ -22,12 +24,24 @@ const SUBTITLE_CHANNELS = Object.freeze({
   snapshot: "subtitle.snapshot",
 } as const);
 
-function createSessionRequest(sessionId: string): AsrSessionRequest {
+function createSessionRequest(
+  sessionId: string,
+  languages: TranslationSessionLanguages = DEFAULT_SESSION_LANGUAGES,
+): AsrSessionRequest {
   return {
     protocolVersion: PROTOCOL_VERSION,
     timestamp: Date.now(),
     sessionId,
+    languages,
   };
+}
+
+function createMessage(sessionId: string) {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    timestamp: Date.now(),
+    sessionId,
+  } as const;
 }
 
 function isInt16Array(value: unknown): value is Int16Array {
@@ -71,10 +85,10 @@ const api: PreloadApi = {
     return runtimeInfo;
   },
 
-  startAsrSession(sessionId) {
+  startAsrSession(sessionId, languages = DEFAULT_SESSION_LANGUAGES) {
     return ipcRenderer.invoke(
       ASR_CHANNELS.start,
-      createSessionRequest(sessionId),
+      createSessionRequest(sessionId, languages),
     );
   },
 
@@ -85,7 +99,7 @@ const api: PreloadApi = {
     channels: 1 = 1,
   ) {
     const request: AsrAudioRequest = {
-      ...createSessionRequest(sessionId),
+      ...createMessage(sessionId),
       audioData: encodePcm16(audio),
       sampleRate,
       channels,

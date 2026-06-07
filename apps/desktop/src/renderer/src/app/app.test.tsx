@@ -20,6 +20,68 @@ describe("App", () => {
     ).toBeEnabled();
     expect(screen.getByText("等待采集系统音频")).toBeInTheDocument();
     expect(screen.queryByText("字幕演示")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("源语言")).toHaveValue("自动检测");
+    expect(screen.getByLabelText("目标语言")).toHaveValue("简体中文");
+  });
+
+  it("starts the ASR session with selected languages and locks selectors", async () => {
+    let onStatusChange:
+      | Parameters<AudioCaptureController["setOnStatusChange"]>[0]
+      | null = null;
+    const controller: AudioCaptureController = {
+      setOnStatusChange: vi.fn((callback) => {
+        onStatusChange = callback;
+      }),
+      setOnPcmData: vi.fn(),
+      start: vi.fn(async () => {
+        onStatusChange?.({
+          state: "capturing",
+          level: { level: 10, timestamp: 1 },
+          error: null,
+        });
+      }),
+      stop: vi.fn(),
+    };
+    const asrClient = {
+      startSession: vi.fn(async (sessionId: string) => ({
+        sessionId,
+        state: "ready" as const,
+      })),
+      sendAudio: vi.fn(),
+      stopSession: vi.fn(async (sessionId: string) => ({
+        sessionId,
+        state: "idle" as const,
+      })),
+    };
+
+    render(
+      <App
+        windowKind="control"
+        createAudioCapture={() => controller}
+        createSessionId={() => "session-language"}
+        asrClient={asrClient}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("源语言"), {
+      target: { value: "日语" },
+    });
+    fireEvent.change(screen.getByLabelText("目标语言"), {
+      target: { value: "英语" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "开始采集" }));
+
+    await waitFor(() => {
+      expect(asrClient.startSession).toHaveBeenCalledWith(
+        "session-language",
+        {
+          sourceLanguage: "ja",
+          targetLanguage: "en",
+        },
+      );
+    });
+    expect(screen.getByLabelText("源语言")).toBeDisabled();
+    expect(screen.getByLabelText("目标语言")).toBeDisabled();
   });
 
   it("starts and stops system audio capture while displaying the level", async () => {
@@ -108,7 +170,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "开始采集" }));
 
     await waitFor(() => {
-      expect(asrClient.startSession).toHaveBeenCalledWith("session-1");
+      expect(asrClient.startSession).toHaveBeenCalledWith("session-1", {
+        sourceLanguage: "auto",
+        targetLanguage: "zh",
+      });
       expect(controller.start).toHaveBeenCalledOnce();
     });
 

@@ -3,6 +3,7 @@ import type {
   SubtitleTranslationRequest,
   TranslatorPort,
 } from "@simulcast/application";
+import { getLanguageOption } from "@simulcast/contracts";
 import {
   MimoResponseFormatError,
   parseMimoSubtitleSnapshot,
@@ -121,6 +122,12 @@ function buildChatCompletionBody(
   model: string,
   request: SubtitleTranslationRequest,
 ): unknown {
+  const targetLanguage = getLanguageOption(request.targetLanguage)?.promptName
+    ?? request.targetLanguage;
+  const sourceInstruction = request.sourceLanguage === "unknown"
+    ? `自动判断输入语言，并翻译为${targetLanguage}。`
+    : `将内容从${getLanguageOption(request.sourceLanguage)?.promptName ?? request.sourceLanguage}翻译为${targetLanguage}。`;
+
   return {
     model,
     thinking: {
@@ -131,7 +138,8 @@ function buildChatCompletionBody(
         role: "system",
         content: [
           "你是 AI 同声传译字幕协调器。",
-          "整理最近 faster-whisper 重叠英文窗口，生成自然简洁的简体中文字幕。",
+          `整理最近 faster-whisper 的重叠识别窗口，${sourceInstruction}`,
+          `生成自然、简洁、适合实时阅读的${targetLanguage}字幕。`,
           "只允许修订输入中 state 不是 locked 的最近上下文。",
           "必须返回严格 JSON，不要输出 Markdown、解释或额外文本。",
         ].join("\n"),

@@ -36,6 +36,8 @@ class ResultMessage:
     start_ms: int
     end_ms: int
     is_final: bool
+    detected_language: Optional[str] = None
+    language_probability: Optional[float] = None
 
 
 @dataclass
@@ -110,6 +112,10 @@ def serialize_message(message: AudioMessage | ResultMessage | ErrorMessage | Sta
             "end_ms": message.end_ms,
             "is_final": message.is_final,
         }
+        if message.detected_language is not None:
+            data["detected_language"] = message.detected_language
+        if message.language_probability is not None:
+            data["language_probability"] = message.language_probability
     elif isinstance(message, ErrorMessage):
         data = {
             "type": MessageType.ERROR.value,
@@ -168,6 +174,18 @@ def deserialize_message(json_str: str) -> AudioMessage | ResultMessage | ErrorMe
             channels=channels,
         )
     elif msg_type == MessageType.RESULT:
+        detected_language = data.get("detected_language")
+        if detected_language is not None and not isinstance(detected_language, str):
+            raise ValueError("detected_language must be a string")
+        language_probability = data.get("language_probability")
+        if (
+            language_probability is not None
+            and (
+                isinstance(language_probability, bool)
+                or not isinstance(language_probability, (int, float))
+            )
+        ):
+            raise ValueError("language_probability must be a number")
         return ResultMessage(
             session_id=_string(data, "session_id"),
             sequence=_integer(data, "sequence"),
@@ -176,6 +194,12 @@ def deserialize_message(json_str: str) -> AudioMessage | ResultMessage | ErrorMe
             start_ms=_integer(data, "start_ms"),
             end_ms=_integer(data, "end_ms"),
             is_final=_boolean(data, "is_final"),
+            detected_language=detected_language,
+            language_probability=(
+                float(language_probability)
+                if language_probability is not None
+                else None
+            ),
         )
     elif msg_type == MessageType.ERROR:
         return ErrorMessage(

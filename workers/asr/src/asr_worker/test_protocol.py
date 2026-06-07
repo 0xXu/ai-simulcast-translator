@@ -40,12 +40,16 @@ class TestSerializeMessage:
             start_ms=0,
             end_ms=1000,
             is_final=True,
+            detected_language="en",
+            language_probability=0.95,
         )
         result = serialize_message(message)
 
         assert '"type": "result"' in result
         assert '"text": "Hello"' in result
         assert '"is_final": true' in result
+        assert '"detected_language": "en"' in result
+        assert '"language_probability": 0.95' in result
 
     def test_serialize_error_message(self):
         message = ErrorMessage(
@@ -84,12 +88,14 @@ class TestDeserializeMessage:
         assert message.audio_data == "base64data"
 
     def test_deserialize_result_message(self):
-        json_str = '{"type": "result", "session_id": "session-001", "sequence": 1, "text": "Hello", "confidence": 0.95, "start_ms": 0, "end_ms": 1000, "is_final": true}'
+        json_str = '{"type": "result", "session_id": "session-001", "sequence": 1, "text": "Hello", "confidence": 0.95, "start_ms": 0, "end_ms": 1000, "is_final": true, "detected_language": "en", "language_probability": 0.95}'
         message = deserialize_message(json_str)
 
         assert isinstance(message, ResultMessage)
         assert message.text == "Hello"
         assert message.is_final is True
+        assert message.detected_language == "en"
+        assert message.language_probability == 0.95
 
     def test_deserialize_error_message(self):
         json_str = '{"type": "error", "session_id": "session-001", "error_code": "INVALID_AUDIO", "error_message": "Invalid audio format"}'
@@ -181,6 +187,8 @@ class TestRoundTrip:
             start_ms=0,
             end_ms=1000,
             is_final=True,
+            detected_language="en",
+            language_probability=0.95,
         )
         serialized = serialize_message(original)
         deserialized = deserialize_message(serialized)
@@ -188,3 +196,4 @@ class TestRoundTrip:
         assert isinstance(deserialized, ResultMessage)
         assert deserialized.text == original.text
         assert deserialized.is_final == original.is_final
+        assert deserialized.detected_language == original.detected_language

@@ -17,8 +17,8 @@ _SAMPLE_RATE = 16000
 
 @dataclass(frozen=True)
 class FasterWhisperConfig:
-    model_name: str = "small.en"
-    language: str = "en"
+    model_name: str = "small"
+    language: str | None = None
     device: str = "cpu"
     compute_type: str = "int8"
     min_window_ms: int = 1600
@@ -44,6 +44,13 @@ class FasterWhisperEngine:
         model_factory: Callable[..., Any] | None = None,
     ) -> None:
         self._config = config or FasterWhisperConfig()
+        if (
+            self._config.model_name.endswith(".en")
+            and self._config.language != "en"
+        ):
+            raise ValueError(
+                "automatic or non-English recognition requires a multilingual Whisper model"
+            )
         self._factory = model_factory or _default_model_factory
         self._model: Any | None = None
         self._buffer = RollingAudioBuffer(
@@ -101,12 +108,13 @@ class FasterWhisperEngine:
 
         # Run transcription.
         model = self._get_model()
-        segments_iter, _info = model.transcribe(
-            audio_f32,
-            language=cfg.language,
-            condition_on_previous_text=False,
-            vad_filter=True,
-        )
+        transcribe_options: dict[str, object] = {
+            "condition_on_previous_text": False,
+            "vad_filter": True,
+        }
+        if cfg.language is not None:
+            transcribe_options["language"] = cfg.language
+        segments_iter, info = model.transcribe(audio_f32, **transcribe_options)
 
         # Collect non-empty segment texts and timestamps.
         texts: list[str] = []
@@ -150,6 +158,8 @@ class FasterWhisperEngine:
             start_ms=start_ms,
             end_ms=end_ms,
             is_final=False,
+            detected_language=getattr(info, "language", None),
+            language_probability=getattr(info, "language_probability", None),
         )
 
     def reset(self) -> None:

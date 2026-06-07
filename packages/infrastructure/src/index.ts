@@ -25,3 +25,8 @@ export {
   type FetchInit,
   type FetchResponseLike,
 } from "./mimo/mimo-client";
+
+export {
+  LanguageAwareTranslator,
+  SameLanguageTranslator,
+} from "./mimo/same-language-translator";

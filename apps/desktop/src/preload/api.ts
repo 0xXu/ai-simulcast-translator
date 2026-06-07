@@ -5,6 +5,7 @@ import type {
   AsrEvent,
   AsrSessionResponse,
   SubtitleSnapshotEvent,
+  TranslationSessionLanguages,
 } from "@simulcast/contracts";
 
 /**
@@ -31,6 +32,7 @@ export interface PreloadApi {
 
   readonly startAsrSession: (
     sessionId: string,
+    languages?: TranslationSessionLanguages,
   ) => Promise<AsrSessionResponse>;
 
   readonly sendAsrAudio: (

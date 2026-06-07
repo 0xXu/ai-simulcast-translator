@@ -1,4 +1,7 @@
 import type {
+  LanguageCode,
+} from "@simulcast/contracts";
+import type {
   RevisionWindowConfig,
   SubtitleSegment,
 } from "@simulcast/domain";
@@ -20,6 +23,8 @@ export interface SubtitleTranslationCoordinatorOptions {
 
 export interface SubtitleCoordinatorInput {
   readonly sessionId: string;
+  readonly sourceLanguage?: LanguageCode | "unknown";
+  readonly targetLanguage?: LanguageCode;
   readonly rawTranscriptWindows: readonly RawTranscriptWindow[];
   readonly currentSubtitles: readonly SubtitleSegment[];
   readonly currentAudioTimeMs?: number;
@@ -152,6 +157,8 @@ export class SubtitleTranslationCoordinator {
     const request = buildSubtitleTranslationRequest({
       requestId,
       sessionId: input.sessionId,
+      sourceLanguage: input.sourceLanguage ?? "unknown",
+      targetLanguage: input.targetLanguage ?? "zh",
       rawTranscriptWindows: input.rawTranscriptWindows,
       currentSubtitles: input.currentSubtitles,
       maxRawContextMs: this.maxRawContextMs,

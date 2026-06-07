@@ -5,6 +5,9 @@ import {
   type SegmentState,
   type SubtitleSegment,
 } from "@simulcast/domain";
+import type { LanguageCode } from "@simulcast/contracts";
+
+export type TranslationSourceLanguage = LanguageCode | "unknown";
 
 export interface RawTranscriptWindow {
   readonly sequence: number;
@@ -42,6 +45,8 @@ export interface SubtitleSnapshot {
 export interface SubtitleTranslationRequest {
   readonly requestId: number;
   readonly sessionId: string;
+  readonly sourceLanguage: TranslationSourceLanguage;
+  readonly targetLanguage: LanguageCode;
   readonly rawTranscriptWindows: readonly RawTranscriptWindow[];
   readonly contextSubtitles: readonly TranslationContextSubtitle[];
 }
@@ -53,6 +58,8 @@ export interface TranslatorPort {
 export interface BuildTranslationRequestOptions {
   readonly requestId: number;
   readonly sessionId: string;
+  readonly sourceLanguage?: TranslationSourceLanguage;
+  readonly targetLanguage?: LanguageCode;
   readonly rawTranscriptWindows: readonly RawTranscriptWindow[];
   readonly currentSubtitles: readonly SubtitleSegment[];
   readonly maxRawContextMs?: number;
@@ -115,6 +122,8 @@ export function buildSubtitleTranslationRequest(
   return {
     requestId: options.requestId,
     sessionId: options.sessionId,
+    sourceLanguage: options.sourceLanguage ?? "unknown",
+    targetLanguage: options.targetLanguage ?? "zh",
     rawTranscriptWindows: selectRecentTranscriptWindows(
       options.rawTranscriptWindows,
       options.maxRawContextMs ?? 20_000,

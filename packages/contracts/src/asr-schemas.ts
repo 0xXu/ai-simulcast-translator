@@ -1,8 +1,19 @@
 import { z } from "zod";
 import type { AsrAudioRequest, AsrSessionRequest } from "./asr";
+import { LANGUAGE_OPTIONS } from "./language";
 import { IpcMessageSchema } from "./schemas";
 
 const SessionIdSchema = z.string().trim().min(1).max(128);
+const LanguageCodeSchema = z.enum(
+  LANGUAGE_OPTIONS.map((option) => option.code) as [
+    (typeof LANGUAGE_OPTIONS)[number]["code"],
+    ...(typeof LANGUAGE_OPTIONS)[number]["code"][],
+  ],
+);
+const SourceLanguageCodeSchema = z.union([
+  z.literal("auto"),
+  LanguageCodeSchema,
+]);
 const Base64Schema = z
   .string()
   .min(1)
@@ -16,6 +27,10 @@ const Base64Schema = z
 
 export const AsrSessionRequestSchema = IpcMessageSchema.extend({
   sessionId: SessionIdSchema,
+  languages: z.object({
+    sourceLanguage: SourceLanguageCodeSchema,
+    targetLanguage: LanguageCodeSchema,
+  }).strict(),
 }).strict();
 
 export const AsrAudioRequestSchema = IpcMessageSchema.extend({

@@ -71,16 +71,22 @@ importers:
 
   packages/application:
     dependencies:
+      '@simulcast/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@simulcast/domain':
         specifier: workspace:*
         version: link:../domain
     devDependencies:
+      '@types/node':
+        specifier: 22.19.20
+        version: 22.19.20
       typescript:
         specifier: 6.0.3
         version: 6.0.3
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@types/node@24.13.0)(jsdom@28.1.0)(vite@7.3.5(@types/node@24.13.0))
+        version: 4.1.8(@types/node@22.19.20)(jsdom@28.1.0)(vite@7.3.5(@types/node@22.19.20))
 
   packages/contracts:
     dependencies:
@@ -112,6 +118,9 @@ importers:
       '@simulcast/application':
         specifier: workspace:*
         version: link:../application
+      '@simulcast/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       zod:
         specifier: 3.23.8
         version: 3.23.8
