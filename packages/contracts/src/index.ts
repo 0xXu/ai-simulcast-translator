@@ -30,6 +30,17 @@ export {
 } from "./audio";
 
 export {
+  LANGUAGE_OPTIONS,
+  DEFAULT_SESSION_LANGUAGES,
+  isLanguageCode,
+  isSourceLanguageCode,
+  getLanguageOption,
+  type LanguageCode,
+  type SourceLanguageCode,
+  type TranslationSessionLanguages,
+} from "./language";
+
+export {
   type AsrSessionState,
   type AsrSessionRequest,
   type AsrAudioRequest,

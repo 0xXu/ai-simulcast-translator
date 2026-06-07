@@ -1,9 +1,14 @@
 import type { IpcMessage } from "./ipc";
+import type {
+  LanguageCode,
+  TranslationSessionLanguages,
+} from "./language";
 
 export type AsrSessionState = "idle" | "starting" | "ready" | "error";
 
 export interface AsrSessionRequest extends IpcMessage {
   readonly sessionId: string;
+  readonly languages: TranslationSessionLanguages;
 }
 
 export interface AsrAudioRequest extends IpcMessage {
@@ -34,6 +39,8 @@ export interface AsrTranscriptEvent {
   readonly startMs: number;
   readonly endMs: number;
   readonly isFinal: boolean;
+  readonly detectedLanguage?: LanguageCode;
+  readonly languageProbability?: number;
 }
 
 export interface AsrErrorEvent {

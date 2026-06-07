@@ -18,11 +18,19 @@ describe("ASR contracts", () => {
     const request = {
       ...baseMessage,
       sessionId: " session-1 ",
+      languages: {
+        sourceLanguage: "auto",
+        targetLanguage: "zh",
+      },
     };
 
     expect(AsrSessionRequestSchema.parse(request)).toEqual({
       ...baseMessage,
       sessionId: "session-1",
+      languages: {
+        sourceLanguage: "auto",
+        targetLanguage: "zh",
+      },
     });
     expect(validateAsrSessionRequest(request).sessionId).toBe("session-1");
   });
@@ -36,6 +44,10 @@ describe("ASR contracts", () => {
         AsrSessionRequestSchema.parse({
           ...baseMessage,
           sessionId: ` ${trimmedSessionId} `,
+          languages: {
+            sourceLanguage: "en",
+            targetLanguage: "ja",
+          },
         }).sessionId,
       ).toBe(trimmedSessionId);
     },
@@ -48,6 +60,10 @@ describe("ASR contracts", () => {
         AsrSessionRequestSchema.parse({
           ...baseMessage,
           sessionId,
+          languages: {
+            sourceLanguage: "auto",
+            targetLanguage: "zh",
+          },
         }),
       ).toThrow();
     },
@@ -110,7 +126,25 @@ describe("ASR contracts", () => {
       AsrSessionRequestSchema.parse({
         ...baseMessage,
         sessionId: "session-1",
+        languages: {
+          sourceLanguage: "auto",
+          targetLanguage: "zh",
+        },
         unexpected: true,
+      }),
+    ).toThrow();
+  });
+
+  it.each([
+    { sourceLanguage: "xx", targetLanguage: "zh" },
+    { sourceLanguage: "auto", targetLanguage: "xx" },
+    { sourceLanguage: "auto" },
+  ])("rejects invalid session languages %j", (languages) => {
+    expect(() =>
+      AsrSessionRequestSchema.parse({
+        ...baseMessage,
+        sessionId: "session-1",
+        languages,
       }),
     ).toThrow();
   });
@@ -132,6 +166,8 @@ describe("ASR contracts", () => {
         startMs: 0,
         endMs: 1_200,
         isFinal: false,
+        detectedLanguage: "en",
+        languageProbability: 0.96,
       },
       {
         type: "error",
@@ -151,6 +187,7 @@ describe("ASR contracts", () => {
     for (const event of events) {
       if (event.type === "transcript") {
         expectTypeOf(event.sequence).toEqualTypeOf<number>();
+        expect(event.detectedLanguage).toBe("en");
       }
     }
   });
