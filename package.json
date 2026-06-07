@@ -10,11 +10,12 @@
   "scripts": {
     "dev": "corepack pnpm --filter @simulcast/desktop dev",
     "build": "corepack pnpm --filter @simulcast/desktop build",
-    "ci": "node scripts/check-format.mjs && node scripts/lint-workspace.mjs && corepack pnpm -r typecheck && corepack pnpm -r test:run && corepack pnpm run build && node scripts/verify-demo.mjs",
+    "ci": "node scripts/check-format.mjs && node scripts/lint-workspace.mjs && corepack pnpm -r typecheck && corepack pnpm -r test:run && corepack pnpm run build && corepack pnpm run test:e2e && node scripts/verify-demo.mjs",
     "format:check": "node scripts/check-format.mjs",
     "lint": "node scripts/lint-workspace.mjs",
     "typecheck": "corepack pnpm -r typecheck",
     "test": "corepack pnpm -r test",
+    "test:e2e": "corepack pnpm --filter @simulcast/desktop test:e2e",
     "test:run": "corepack pnpm -r test:run",
     "verify:demo": "node scripts/verify-demo.mjs"
   }

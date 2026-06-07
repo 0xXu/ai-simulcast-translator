@@ -12,6 +12,7 @@ await requireJson("package.json", (pkg) => {
     "dev",
     "format:check",
     "lint",
+    "test:e2e",
     "test:run",
     "typecheck",
     "verify:demo",
@@ -56,12 +57,19 @@ await requireText("README.md", (text) => {
 for (const file of [
   ".github/workflows/ci.yml",
   "docs/demo.md",
+  "apps/desktop/e2e/app.spec.ts",
   "scripts/verify-demo.mjs",
 ]) {
   if (!existsSync(join(root, file))) {
     failures.push(`${file}: missing required PR11 artifact`);
   }
 }
+
+await requireText(".github/workflows/ci.yml", (text) => {
+  if (!text.includes("pnpm test:e2e")) {
+    failures.push(".github/workflows/ci.yml: missing pnpm test:e2e step");
+  }
+});
 
 if (failures.length > 0) {
   console.error("Workspace lint failed:");

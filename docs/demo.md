@@ -9,6 +9,7 @@ corepack enable
 corepack prepare pnpm@11.5.2 --activate
 pnpm install
 pnpm build
+pnpm test:e2e
 pnpm verify:demo
 ```
 
@@ -92,6 +93,7 @@ GitHub Actions 执行：
 - `pnpm -r typecheck`
 - `pnpm -r test:run`
 - `pnpm build`
+- `pnpm test:e2e`
 - `pnpm verify:demo`
 - `uv run --project workers/asr --extra dev pytest`
 

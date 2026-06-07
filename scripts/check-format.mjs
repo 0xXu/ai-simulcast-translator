@@ -10,7 +10,11 @@ const ignoredDirs = new Set([
   "dist",
   "coverage",
   ".venv",
+  ".pytest_cache",
   "__pycache__",
+  "blob-report",
+  "playwright-report",
+  "test-results",
 ]);
 const checkedExtensions = new Set([
   ".css",

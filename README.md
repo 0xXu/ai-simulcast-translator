@@ -63,6 +63,7 @@ pnpm lint
 pnpm typecheck
 pnpm test:run
 pnpm build
+pnpm test:e2e
 pnpm verify:demo
 ```
 
@@ -73,6 +74,7 @@ pnpm run ci
 ```
 
 `pnpm verify:demo` 需要先执行 `pnpm build`，它会检查构建产物、MiMo 降级路径、字幕快照 IPC 和 renderer 订阅入口是否存在。
+`pnpm test:e2e` 会启动构建后的 Electron 应用，验证控制窗和悬浮字幕窗都能加载。
 
 ## ASR Worker 验证
 

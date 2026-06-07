@@ -42,6 +42,9 @@ jobs:
       - name: Build desktop app
         run: pnpm build
 
+      - name: Run Electron smoke test
+        run: pnpm test:e2e
+
       - name: Verify reproducible demo artifacts
         run: pnpm verify:demo
 
