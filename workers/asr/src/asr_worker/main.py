@@ -122,7 +122,12 @@ def create_engine(name: str, **kwargs) -> "AsrEngine":
     if name == "faster-whisper":
         from .faster_whisper_engine import FasterWhisperEngine, FasterWhisperConfig
         config = FasterWhisperConfig(
-            model_name=kwargs.get("model_name", "small.en"),
+            model_name=kwargs.get("model_name", "small"),
+            language=(
+                None
+                if kwargs.get("language", "auto") == "auto"
+                else kwargs["language"]
+            ),
             device=kwargs.get("device", "cpu"),
             compute_type=kwargs.get("compute_type", "int8"),
         )
@@ -134,7 +139,8 @@ def main():
     """主入口"""
     parser = argparse.ArgumentParser(description="ASR Worker")
     parser.add_argument("--engine", choices=["mock", "faster-whisper"], default="mock")
-    parser.add_argument("--model", default="small.en")
+    parser.add_argument("--model", default="small")
+    parser.add_argument("--language", default="auto")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--compute-type", default="int8")
     args = parser.parse_args()
@@ -142,6 +148,7 @@ def main():
     engine = create_engine(
         args.engine,
         model_name=args.model,
+        language=args.language,
         device=args.device,
         compute_type=args.compute_type,
     )

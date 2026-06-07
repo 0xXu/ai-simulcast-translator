@@ -64,6 +64,7 @@ def main() -> None:
 
     print(f"Text: {last_result.text}")
     print(f"Confidence: {last_result.confidence:.4f}")
+    print(f"Detected language: {last_result.detected_language or 'unknown'}")
 
 
 if __name__ == "__main__":
