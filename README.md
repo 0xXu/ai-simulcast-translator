@@ -1,26 +1,56 @@
 # AI 同声传译助手
 
-面向观看英语演讲、技术分享、国际会议和网课的 macOS Electron 桌面应用。应用采集系统音频，在本地使用 faster-whisper 识别英文原文，再通过 `mimo-v2.5` 生成中文字幕，并用 **Semantic Rewind** 在后文消除歧义时回溯修订最近字幕。
+AI 同声传译助手是一款面向 macOS 的 Electron 桌面应用，用于观看英语演讲、技术分享、国际会议和网课时实时生成中文字幕。应用采集系统音频，在本地通过 faster-whisper 完成英文 ASR，再调用 MiMo OpenAI-compatible Chat Completions API 生成结构化中文字幕。
 
-当前 `main` 已具备端到端演示链路：系统音频采集、ASR Worker 会话、MiMo/OpenAI-compatible 翻译适配器、字幕快照应用、悬浮窗修订高亮和 MiMo 未配置时的英文原文降级。
+项目的核心亮点是 **Semantic Rewind**：字幕不是一次性文本流，而是一条可收敛的时间线。系统会快速显示当前字幕，并允许 MiMo 基于后文语义回溯修订最近 5 句或 20 秒内的字幕；超出窗口的内容会锁定，避免用户已经读过的字幕持续跳动。
 
-## 核心能力
+## Demo 视频
 
-- macOS 系统音频采集和 16 kHz 单声道 PCM 传输。
-- 独立 Python ASR Worker，默认使用 faster-whisper，也保留 Mock/测试路径。
-- `mimo-v2.5` 文本翻译协调器，按最近 20 秒原文和最近 5 句字幕上下文生成结构化快照。
-- 最近 5 句或 20 秒内字幕可原位修订，超过修订窗口后锁定。
-- 旧 `requestId` 快照不会覆盖更新字幕。
-- MiMo 未配置或调用失败时，悬浮窗继续显示 ASR 英文原文。
+- Demo 视频链接：待补充
+- 上传演示视频后，将这里替换为真实链接，例如：`https://...`
+
+## 当前能力
+
+- 采集 macOS 系统音频，并转换为 16 kHz 单声道 PCM。
+- 通过独立 Python ASR Worker 在本地运行 faster-whisper。
+- 使用 `mimo-v2.5` 生成中文字幕、统一术语并修订最近字幕。
+- 通过 `requestId` 丢弃过期响应，防止旧快照覆盖新字幕。
+- 在透明悬浮窗显示中文字幕和英文原文。
+- 对被修订的字幕做短暂高亮，减少阅读负担。
+- MiMo 未配置或调用失败时，继续显示 ASR 英文原文，不中断演示。
+- 提供 Electron E2E 冒烟测试、构建检查和演示验收脚本。
+
+## 技术架构
+
+```text
+macOS 系统音频
+  -> Renderer AudioCapture
+  -> preload 安全 IPC
+  -> Electron Main ASR Session
+  -> Python faster-whisper Worker
+  -> MiMo 字幕翻译协调器
+  -> 版本化字幕时间线
+  -> Electron 悬浮字幕窗
+```
+
+主要模块：
+
+- `apps/desktop`：Electron 主进程、preload、React 控制窗和悬浮字幕窗。
+- `packages/contracts`：IPC、ASR、字幕快照等跨进程契约。
+- `packages/domain`：字幕时间线、修订窗口和状态规则。
+- `packages/application`：翻译请求构建、快照应用和协调器。
+- `packages/infrastructure`：MiMo 客户端和 Whisper Worker 适配器。
+- `workers/asr`：Python ASR Worker 与 faster-whisper 引擎。
 
 ## 环境要求
 
-- macOS 13+，建议 macOS 14.2+ 用于系统音频权限验证。
+- macOS 13+，建议 macOS 14.2+ 用于系统音频权限和打包验收。
 - Node.js 22.12+ 或 24+。
 - pnpm 11.5.2，通过 Corepack 启用。
-- Python 3.12 和 `uv`，用于 ASR Worker 本地验证。
+- Python 3.12。
+- `uv`，用于运行 ASR Worker 测试和本地依赖。
 
-## 安装
+## 快速开始
 
 ```bash
 corepack enable
@@ -28,32 +58,60 @@ corepack prepare pnpm@11.5.2 --activate
 pnpm install
 ```
 
-## 配置
-
-复制 `.env.example` 并填写 MiMo 配置：
+复制环境变量模板：
 
 ```bash
 cp .env.example .env
 ```
 
-关键变量：
-
-- `MIMO_BASE_URL`：MiMo OpenAI-compatible API 地址。
-- `MIMO_API_KEY`：MiMo API Key，仅主进程读取，不暴露给 renderer。
-- `MIMO_MODEL`：默认 `mimo-v2.5`。
-- `WHISPER_MODEL`：默认 `small.en`。
-
-未填写 `MIMO_API_KEY` 或 `MIMO_BASE_URL` 时，应用会使用英文原文降级字幕，便于无外部 API 的演示和 CI 验证。
-
-## 启动
+启动桌面应用：
 
 ```bash
 pnpm dev
 ```
 
-启动后会出现控制窗和透明悬浮字幕窗。点击“开始采集”后，应用会请求系统音频录制权限，并将 PCM 送入本地 ASR Worker。首次使用 macOS 可能需要在系统设置中允许屏幕与系统音频录制权限。
+启动后会出现控制窗和透明悬浮字幕窗。点击“开始采集”后，macOS 会请求屏幕与系统音频录制权限；授权后，系统音频会被送入本地 ASR Worker。
 
-## 验证
+## MiMo 与 ASR 配置
+
+`.env.example` 包含演示所需的关键变量：
+
+```bash
+MIMO_BASE_URL=https://api.xiaomimimo.com/v1
+MIMO_API_KEY=
+MIMO_MODEL=mimo-v2.5
+WHISPER_MODEL=small.en
+WHISPER_DEVICE=cpu
+WHISPER_COMPUTE_TYPE=int8
+```
+
+配置说明：
+
+- `MIMO_BASE_URL`：MiMo OpenAI-compatible API 地址。
+- `MIMO_API_KEY`：MiMo API Key，仅 Electron 主进程读取，不暴露给 renderer。
+- `MIMO_MODEL`：默认使用 `mimo-v2.5`。
+- `WHISPER_MODEL`：默认使用 `small.en`，可按机器性能调整。
+- `WHISPER_DEVICE` / `WHISPER_COMPUTE_TYPE`：控制 faster-whisper 推理设备和精度。
+
+如果没有填写 `MIMO_API_KEY` 或 `MIMO_BASE_URL`，应用会自动走英文原文降级路径，方便无外部 API 的本地演示和 CI 验证。
+
+## 打包
+
+构建桌面产物：
+
+```bash
+pnpm build
+```
+
+打包 macOS 应用：
+
+```bash
+corepack pnpm --filter @simulcast/desktop pack
+```
+
+打包脚本会把 `workers/asr` 作为 Electron extra resources 带入应用。当前 macOS 配置包含系统音频、麦克风和屏幕录制权限说明。
+
+## 验证命令
 
 常用本地验证：
 
@@ -67,35 +125,31 @@ pnpm test:e2e
 pnpm verify:demo
 ```
 
-完整 CI 同等验证：
+完整 JS CI 同等验证：
 
 ```bash
 pnpm run ci
 ```
 
-`pnpm verify:demo` 需要先执行 `pnpm build`，它会检查构建产物、MiMo 降级路径、字幕快照 IPC 和 renderer 订阅入口是否存在。
-`pnpm test:e2e` 会启动构建后的 Electron 应用，验证控制窗和悬浮字幕窗都能加载。
-
-## ASR Worker 验证
-
-Mock/单元测试路径：
+ASR Worker 测试：
 
 ```bash
 uv run --project workers/asr --extra dev pytest
 ```
 
-真实 faster-whisper 冒烟验证需要准备 16 kHz 单声道 WAV：
+`pnpm verify:demo` 会检查桌面构建产物、MiMo 降级路径、字幕 IPC 和 renderer 订阅入口。`pnpm test:e2e` 会启动构建后的 Electron 应用，验证控制窗和悬浮字幕窗可以加载。
 
-```bash
-mkdir -p /tmp/ai-simulcast-smoke
-say -v Samantha "Today we are building a real time translation assistant." -o /tmp/ai-simulcast-smoke/english-demo.aiff
-afconvert -f WAVE -d LEI16@16000 -c 1 /tmp/ai-simulcast-smoke/english-demo.aiff /tmp/ai-simulcast-smoke/english-demo.wav
-uv run --project workers/asr python workers/asr/scripts/smoke_faster_whisper.py /tmp/ai-simulcast-smoke/english-demo.wav
-```
+## 演示验收
 
-## 演示说明
+更完整的演示流程见 [docs/demo.md](docs/demo.md)，其中包含：
 
-评审或演示人员可以参考 [docs/demo.md](docs/demo.md)。文档包含无 MiMo Key 的降级演示、真实 MiMo 配置演示、Semantic Rewind 观察点和验收清单。
+- 无 MiMo Key 的降级演示。
+- 真实 MiMo 翻译演示。
+- Semantic Rewind 观察脚本。
+- 30 分钟连续运行检查清单。
+- CI 覆盖范围和本地 macOS 验收范围。
+
+真实验收建议播放一段包含指代、术语和后文反转的英文内容，观察最近字幕是否能原位修订并高亮。
 
 ## 数据与隐私
 
