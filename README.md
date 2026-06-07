@@ -6,8 +6,7 @@ AI 同声传译助手是一款面向 macOS 的 Electron 桌面应用，用于观
 
 ## Demo 视频
 
-- Demo 视频链接：待补充
-- 上传演示视频后，将这里替换为真实链接，例如：`https://...`
+- Demo 视频链接：[Google Drive](https://drive.google.com/file/d/1eDponYJq0L91UkTwYROUMq-SkFrlCFse/view?usp=drive_link)
 
 ## 当前能力
 
