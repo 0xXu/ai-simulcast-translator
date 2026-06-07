@@ -1,225 +1,106 @@
 # AI 同声传译助手
 
-一款面向 macOS 的 AI 实时翻译桌面应用。它采集系统音频，通过本地
-faster-whisper 识别外语原文，再由 `mimo-v2.5` 一次完成重叠原文整理、
-中文翻译、上下文理解和历史字幕修订。
+面向观看英语演讲、技术分享、国际会议和网课的 macOS Electron 桌面应用。应用采集系统音频，在本地使用 faster-whisper 识别英文原文，再通过 `mimo-v2.5` 生成中文字幕，并用 **Semantic Rewind** 在后文消除歧义时回溯修订最近字幕。
 
-产品核心能力是 **Semantic Rewind（语义回溯）**：当后续内容改变前文语义时，
-系统可以自动修正最近 5 句或 20 秒内已展示的字幕，而不是永久保留第一次翻译。
-
-> 当前状态：已完成 Electron + React 静态演示壳，控制窗和悬浮字幕可启动。
-> 系统音频、Whisper、MiMo 和语义回溯将在后续独立 PR 中实现。
+当前 `main` 已具备端到端演示链路：系统音频采集、ASR Worker 会话、MiMo/OpenAI-compatible 翻译适配器、字幕快照应用、悬浮窗修订高亮和 MiMo 未配置时的英文原文降级。
 
 ## 核心能力
 
-- 捕获 macOS 系统播放的会议、课程、演讲或视频音频。
-- 使用本地 faster-whisper 增量识别英文，原始音频默认不上传。
-- 使用 `mimo-v2.5` 直接整理并翻译 ASR 原始窗口，结合上下文修正歧义。
-- 在透明置顶悬浮窗中展示中文主字幕和可选英文原文。
-- 使用 `live`、`revisable`、`locked` 生命周期控制字幕稳定性。
-- 通过递增 `requestId` 防止过期模型响应覆盖新字幕快照。
-- MiMo 不可用时降级显示英文原文，不中断音频识别。
+- macOS 系统音频采集和 16 kHz 单声道 PCM 传输。
+- 独立 Python ASR Worker，默认使用 faster-whisper，也保留 Mock/测试路径。
+- `mimo-v2.5` 文本翻译协调器，按最近 20 秒原文和最近 5 句字幕上下文生成结构化快照。
+- 最近 5 句或 20 秒内字幕可原位修订，超过修订窗口后锁定。
+- 旧 `requestId` 快照不会覆盖更新字幕。
+- MiMo 未配置或调用失败时，悬浮窗继续显示 ASR 英文原文。
 
-## 工作流程
+## 环境要求
 
-```text
-macOS 系统音频
-  -> 音频捕获与重采样
-  -> faster-whisper 增量 ASR
-  -> 原文稳定与分段
-  -> MiMo 上下文翻译
-  -> 版本化语义回溯
-  -> Electron 悬浮字幕
-```
+- macOS 13+，建议 macOS 14.2+ 用于系统音频权限验证。
+- Node.js 22.12+ 或 24+。
+- pnpm 11.5.2，通过 Corepack 启用。
+- Python 3.12 和 `uv`，用于 ASR Worker 本地验证。
 
-MVP 中 MiMo 不直接接收实时音频。Whisper 负责语音识别和时间戳，
-`mimo-v2.5` 负责重叠文本整理、分段、中文翻译、术语统一、指代消歧及最近
-上下文的回溯修订。`mimo-v2.5-asr` 和 MiMo TTS 系列暂不接入。
-
-## 系统架构
-
-项目采用桌面端前后端分离和分层架构：
-
-```text
-Frontend
-Electron Renderer + React
-控制窗口、悬浮字幕、交互和视图状态
-          |
-          | Typed IPC
-          v
-Backend
-Electron Main + TypeScript
-应用用例、字幕领域状态、MiMo、配置和进程管理
-          |
-          | Versioned Worker Protocol
-          v
-Inference Worker
-Python + faster-whisper
-音频预处理和增量语音识别
-```
-
-后端依赖方向为：
-
-```text
-Infrastructure -> Application -> Domain
-IPC Adapter ----> Application -> Domain
-```
-
-- React 不包含 MiMo Prompt、字幕锁定算法或版本冲突规则。
-- Domain 不依赖 Electron、网络、模型 SDK、文件系统或 Python。
-- 音频、ASR、翻译、修订和 UI 通过稳定接口解耦。
-- 更换 ASR 或翻译模型不应影响字幕领域模型和前端组件。
-
-完整设计见
-[产品与技术设计](docs/superpowers/specs/2026-06-06-ai-simulcast-translator-design.md)。
-
-## 计划技术栈
-
-| 部分 | 技术 |
-|---|---|
-| 桌面容器 | Electron |
-| 前端 | React + TypeScript |
-| 本地后端 | Electron Main + TypeScript |
-| ASR Worker | Python + faster-whisper |
-| 翻译模型 | MiMo OpenAI-compatible API |
-| 系统音频 | 优先评估 macOS ScreenCaptureKit |
-| 通信 | Typed Electron IPC + Worker Protocol |
-| 密钥存储 | macOS Keychain 或 Electron 安全存储 |
-
-## 目标目录结构
-
-目录将在对应功能 PR 中逐步创建：
-
-```text
-apps/
-  desktop/
-    src/main/          Electron 本地后端和依赖组合
-    src/preload/       安全、类型化的 IPC API
-    src/renderer/      React 前端
-packages/
-  domain/              字幕领域模型和业务规则
-  application/         用例和端口
-  contracts/           IPC 与 Worker 协议
-  infrastructure/      MiMo、音频和存储适配器
-workers/
-  asr/                 Python faster-whisper Worker
-docs/
-  superpowers/specs/   产品与技术设计
-```
-
-## 开发状态与启动
-
-### 环境要求
-
-- macOS 13+
-- Node.js 22.12+（22.x）或 24+
-- pnpm 11.5.2
-
-### 安装与启动
+## 安装
 
 ```bash
 corepack enable
+corepack prepare pnpm@11.5.2 --activate
 pnpm install
+```
+
+## 配置
+
+复制 `.env.example` 并填写 MiMo 配置：
+
+```bash
+cp .env.example .env
+```
+
+关键变量：
+
+- `MIMO_BASE_URL`：MiMo OpenAI-compatible API 地址。
+- `MIMO_API_KEY`：MiMo API Key，仅主进程读取，不暴露给 renderer。
+- `MIMO_MODEL`：默认 `mimo-v2.5`。
+- `WHISPER_MODEL`：默认 `small.en`。
+
+未填写 `MIMO_API_KEY` 或 `MIMO_BASE_URL` 时，应用会使用英文原文降级字幕，便于无外部 API 的演示和 CI 验证。
+
+## 启动
+
+```bash
 pnpm dev
 ```
 
-为控制供应链风险，项目仅授权 Electron 和 esbuild 执行安装构建脚本。
+启动后会出现控制窗和透明悬浮字幕窗。点击“开始采集”后，应用会请求系统音频录制权限，并将 PCM 送入本地 ASR Worker。首次使用 macOS 可能需要在系统设置中允许屏幕与系统音频录制权限。
 
-若系统提示 `corepack: command not found`，先安装 Corepack：
+## 验证
 
-```bash
-npm install --global corepack@0.34.7
-```
-
-启动后会出现两个窗口：控制窗和透明置顶的悬浮字幕窗。当前为静态演示，
-无需填写 `.env.example` 中的 MiMo 和 Whisper 配置。
-
-### 验证
+常用本地验证：
 
 ```bash
-pnpm test:run
+pnpm format:check
+pnpm lint
 pnpm typecheck
+pnpm test:run
 pnpm build
+pnpm verify:demo
 ```
 
-
-## ASR Worker 运行模式
-
-| 模式 | 命令 | 用途 |
-|------|------|------|
-| Mock（默认） | `uv run python -m asr_worker.main` | 开发、CI、现有桌面演示 |
-| 真实模型 | `uv run python -m asr_worker.main --engine faster-whisper` | 本地验收，需首次下载模型 |
-
-### 真实模型冒烟验证
+完整 CI 同等验证：
 
 ```bash
-# 生成固定测试音频
+pnpm run ci
+```
+
+`pnpm verify:demo` 需要先执行 `pnpm build`，它会检查构建产物、MiMo 降级路径、字幕快照 IPC 和 renderer 订阅入口是否存在。
+
+## ASR Worker 验证
+
+Mock/单元测试路径：
+
+```bash
+uv run --project workers/asr --extra dev pytest
+```
+
+真实 faster-whisper 冒烟验证需要准备 16 kHz 单声道 WAV：
+
+```bash
 mkdir -p /tmp/ai-simulcast-smoke
 say -v Samantha "Today we are building a real time translation assistant." -o /tmp/ai-simulcast-smoke/english-demo.aiff
 afconvert -f WAVE -d LEI16@16000 -c 1 /tmp/ai-simulcast-smoke/english-demo.aiff /tmp/ai-simulcast-smoke/english-demo.wav
-
-# 运行冒烟测试
 uv run --project workers/asr python workers/asr/scripts/smoke_faster_whisper.py /tmp/ai-simulcast-smoke/english-demo.wav
 ```
 
-> **注意：** PR 07 尚未接通桌面 PCM 到真实 Worker；端到端音频链路属于 PR 08。
+## 演示说明
 
-## 性能目标
-
-- 首个中文字幕中位延迟不高于 3 秒。
-- 连续语音下字幕通常每 1.5 秒内更新。
-- 30 分钟连续运行不丢失顺序、不产生明显重复字幕。
-- 最近 5 句或 20 秒内支持原位修订。
-- 超出修订窗口的字幕自动锁定。
-
-## 开发与 PR 规范
-
-所有功能必须通过 Pull Request 合入主分支。
-
-- 每个 PR 只实现或修改一个独立功能。
-- 大功能拆分为多个小型、可独立验证的 PR。
-- 不在功能 PR 中混入无关重构、格式化或依赖升级。
-- 每个 PR 合并后，主分支必须能够安装、启动和复现当前演示。
-- 未完成的外部能力使用 Mock、Feature Flag 或明确的降级路径隔离。
-- 不得提交 API Key、原始音频、隐私字幕或本机绝对路径。
-
-### PR 描述模板
-
-```markdown
-## 功能描述
-
-说明该功能的作用、解决的问题和使用方式。
-
-## 实现思路
-
-说明技术选型、核心数据流、接口和主要实现逻辑。
-
-## 测试方式
-
-列出验证步骤、执行命令和预期结果。UI 变更附截图或录屏。
-```
-
-PR 合并前至少应通过格式检查、Lint、类型检查、单元测试、构建和冒烟测试。
-评委在任意时间检出主分支，都应能够复现已经完成的演示效果。
-
-## 实施顺序
-
-1. 创建可运行的 Electron + React 桌面骨架。
-2. 新增 macOS 系统音频采集和音量状态。
-3. 新增 Whisper Worker，显示实时英文原文。
-4. 新增 MiMo API 客户端和中文翻译。
-5. 新增最近 5 句或 20 秒上下文。
-6. 新增版本化字幕修订和 Semantic Rewind。
-7. 完善悬浮窗、容错、性能和演示流程。
-
-每一步均通过独立 PR 交付，并保持主分支可运行。
+评审或演示人员可以参考 [docs/demo.md](docs/demo.md)。文档包含无 MiMo Key 的降级演示、真实 MiMo 配置演示、Semantic Rewind 观察点和验收清单。
 
 ## 数据与隐私
 
-- 原始音频默认仅在本地内存中处理，不落盘。
-- ASR 原文和有限上下文会发送至 MiMo API。
-- API Key 只由 Electron 主进程读取和保存。
-- 日志默认不记录 API Key、完整字幕正文或原始音频。
+- 原始音频默认只在本地内存中处理，不落盘。
+- ASR 原文和有限上下文会发送到 MiMo API。
+- API Key 仅由 Electron 主进程读取。
+- 日志不得记录 API Key、完整字幕正文或原始音频。
 
 ## License
 

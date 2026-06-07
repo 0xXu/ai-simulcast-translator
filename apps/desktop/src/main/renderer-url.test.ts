@@ -15,8 +15,8 @@ describe("createRendererUrl", () => {
 
     const url = new URL(rendererUrl);
     expect(url.protocol).toBe("file:");
-    expect(url.pathname).toBe(
-      "/Applications/AI%20Simulcast%20Translator/index.html",
+    expect(decodeURIComponent(url.pathname).replace(/\\/g, "/")).toMatch(
+      /\/Applications\/AI Simulcast Translator\/index\.html$/,
     );
     expect(url.hash).toBe("#control");
   });

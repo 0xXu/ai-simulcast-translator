@@ -1,5 +1,15 @@
 import { PROTOCOL_VERSION, type AsrEvent } from "@simulcast/contracts";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("electron", () => ({
+  ipcMain: {
+    handle: vi.fn(),
+    removeHandler: vi.fn(),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  },
+}));
+
 import {
   ASR_IPC_CHANNELS,
   createAsrCleanup,

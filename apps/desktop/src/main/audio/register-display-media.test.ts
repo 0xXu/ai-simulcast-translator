@@ -1,5 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DesktopCapturerSource, Session } from "electron";
+
+vi.mock("electron", () => ({
+  desktopCapturer: {
+    getSources: vi.fn(),
+  },
+  session: {
+    defaultSession: {
+      setDisplayMediaRequestHandler: vi.fn(),
+    },
+  },
+}));
+
 import { registerDisplayMediaHandler } from "./register-display-media";
 
 describe("registerDisplayMediaHandler", () => {

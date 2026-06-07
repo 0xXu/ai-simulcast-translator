@@ -8,10 +8,14 @@
     "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @simulcast/desktop dev",
-    "build": "pnpm --filter @simulcast/desktop build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
-    "test:run": "pnpm -r test:run"
+    "dev": "corepack pnpm --filter @simulcast/desktop dev",
+    "build": "corepack pnpm --filter @simulcast/desktop build",
+    "ci": "node scripts/check-format.mjs && node scripts/lint-workspace.mjs && corepack pnpm -r typecheck && corepack pnpm -r test:run && corepack pnpm run build && node scripts/verify-demo.mjs",
+    "format:check": "node scripts/check-format.mjs",
+    "lint": "node scripts/lint-workspace.mjs",
+    "typecheck": "corepack pnpm -r typecheck",
+    "test": "corepack pnpm -r test",
+    "test:run": "corepack pnpm -r test:run",
+    "verify:demo": "node scripts/verify-demo.mjs"
   }
 }
