@@ -48,7 +48,7 @@ export function resolveAsrLaunchOptions(
 ): WhisperWorkerLaunchOptions {
   return {
     engine: "faster-whisper",
-    modelName: env.WHISPER_MODEL ?? "small",
+    modelName: env.WHISPER_MODEL ?? "tiny",
     language: "auto",
     device: env.WHISPER_DEVICE ?? "cpu",
     computeType: env.WHISPER_COMPUTE_TYPE ?? "int8",

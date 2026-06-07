@@ -237,16 +237,27 @@ if (!hasSingleInstanceLock) {
   void app
     .whenReady()
     .then(() => {
+      console.log("=== Main Process whenReady starts ===");
       registerIpcHandlers();
       registerDisplayMediaHandler();
       const workerDirOverride = process.env.ASR_WORKER_DIR;
+      const isPackaged = app.isPackaged;
+      const resourcesPath = process.resourcesPath;
+      const workerCwd = resolveAsrWorkerCwd({
+        appPath: app.getAppPath(),
+        resourcesPath,
+        isPackaged,
+        ...(workerDirOverride ? { override: workerDirOverride } : {}),
+      });
+      console.log("[Main] workerCwd resolved to:", workerCwd);
+      const pythonBin = isPackaged
+        ? join(workerCwd, ".venv/bin/python")
+        : undefined;
+      console.log("[Main] pythonBin resolved to:", pythonBin);
+
       const worker = new WhisperWorkerAdapter({
-        workerCwd: resolveAsrWorkerCwd({
-          appPath: app.getAppPath(),
-          resourcesPath: process.resourcesPath,
-          isPackaged: app.isPackaged,
-          ...(workerDirOverride ? { override: workerDirOverride } : {}),
-        }),
+        workerCwd,
+        pythonBin,
       });
       const subtitleBridge = new SubtitleSessionBridge({
         translator: createTranslatorFromEnv(process.env),

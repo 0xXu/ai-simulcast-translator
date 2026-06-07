@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "pack": "bash ./scripts/prepare-asr-worker.sh && electron-builder --mac",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
@@ -30,10 +31,46 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.1.4",
     "electron": "42.3.3",
+    "electron-builder": "^26.15.0",
     "electron-vite": "5.0.0",
     "jsdom": "28.1.0",
     "typescript": "6.0.3",
     "vite": "7.3.5",
     "vitest": "4.1.8"
+  },
+  "build": {
+    "appId": "com.simulcast.translator",
+    "productName": "AI 同声传译助手",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../workers/asr",
+        "to": "workers/asr",
+        "filter": [
+          "**/*",
+          "!**/__pycache__/**",
+          "!**/*.pyc",
+          "!**/*.pyo"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "extendInfo": {
+        "NSAudioCaptureUsageDescription": "我们需要访问您的系统音频以进行实时同声传译和字幕生成。",
+        "NSMicrophoneUsageDescription": "我们需要访问您的麦克风以进行语音录制和同声传译。",
+        "NSScreenCaptureUsageDescription": "我们需要进行屏幕录制以捕获关联的系统音频进行同声传译。"
+      }
+    }
   }
 }

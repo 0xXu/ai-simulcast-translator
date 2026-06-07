@@ -49,6 +49,7 @@ export type WhisperWorkerSpawnProcess = (
 
 export interface WhisperWorkerAdapterOptions {
   readonly workerCwd: string;
+  readonly pythonBin?: string;
   readonly startupTimeoutMs?: number;
   readonly spawnProcess?: WhisperWorkerSpawnProcess;
 }
@@ -80,22 +81,45 @@ export class WhisperWorkerAdapter extends EventEmitter {
     this.resetStdoutBuffer();
 
     const spawnProcess = this.options.spawnProcess ?? spawn;
-    const args = [
-      "run",
-      "python",
-      "-m",
-      "asr_worker.main",
-      "--engine",
-      options.engine,
-      "--model",
-      options.modelName,
-      "--language",
-      options.language,
-      "--device",
-      options.device,
-      "--compute-type",
-      options.computeType,
-    ];
+    
+    let command: string;
+    let args: string[];
+
+    if (this.options.pythonBin) {
+      command = this.options.pythonBin;
+      args = [
+        "-m",
+        "asr_worker.main",
+        "--engine",
+        options.engine,
+        "--model",
+        options.modelName,
+        "--language",
+        options.language,
+        "--device",
+        options.device,
+        "--compute-type",
+        options.computeType,
+      ];
+    } else {
+      command = "uv";
+      args = [
+        "run",
+        "python",
+        "-m",
+        "asr_worker.main",
+        "--engine",
+        options.engine,
+        "--model",
+        options.modelName,
+        "--language",
+        options.language,
+        "--device",
+        options.device,
+        "--compute-type",
+        options.computeType,
+      ];
+    }
 
     this.startupPromise = new Promise<void>((resolve, reject) => {
       this.resolveStartup = resolve;
@@ -104,7 +128,7 @@ export class WhisperWorkerAdapter extends EventEmitter {
 
     let child: ChildProcess;
     try {
-      child = spawnProcess("uv", args, {
+      child = spawnProcess(command, args, {
         cwd: this.options.workerCwd,
         stdio: ["pipe", "pipe", "pipe"],
       });
