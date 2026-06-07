@@ -1,5 +1,5 @@
 {
-  "name": "@simulcast/infrastructure",
+  "name": "@simulcast/application",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,11 +11,9 @@
     "test:run": "vitest run"
   },
   "dependencies": {
-    "@simulcast/application": "workspace:*",
-    "zod": "3.23.8"
+    "@simulcast/domain": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "22.19.20",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
   }
