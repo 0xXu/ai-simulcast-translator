@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import type { SubtitleSnapshotEvent } from "@simulcast/contracts";
+import type { AsrEvent, SubtitleSnapshotEvent } from "@simulcast/contracts";
 import { App, type AudioCaptureController } from "./app";
 
 describe("App", () => {
@@ -124,6 +124,61 @@ describe("App", () => {
     await waitFor(() => {
       expect(asrClient.stopSession).toHaveBeenCalledWith("session-1");
     });
+  });
+
+  it("projects ASR runtime status events in the control window", () => {
+    let publishAsrEvent: ((event: AsrEvent) => void) | null = null;
+    const unsubscribe = vi.fn();
+
+    const { unmount } = render(
+      <App
+        windowKind="control"
+        subscribeToAsrEvents={(listener) => {
+          publishAsrEvent = listener;
+          return unsubscribe;
+        }}
+      />,
+    );
+
+    expect(screen.getByText("本地识别待启动")).toBeInTheDocument();
+
+    act(() => {
+      publishAsrEvent?.({
+        type: "status",
+        sessionId: "session-1",
+        state: "starting",
+        message: "正在启动本地语音识别",
+      });
+    });
+    expect(screen.getByText("本地识别启动中")).toBeInTheDocument();
+    expect(screen.getByText("正在启动本地语音识别")).toBeInTheDocument();
+
+    act(() => {
+      publishAsrEvent?.({
+        type: "status",
+        sessionId: "session-1",
+        state: "ready",
+        message: "本地语音识别已就绪",
+      });
+    });
+    expect(screen.getByText("本地识别已就绪")).toBeInTheDocument();
+    expect(screen.getByText("本地语音识别已就绪")).toBeInTheDocument();
+
+    act(() => {
+      publishAsrEvent?.({
+        type: "error",
+        sessionId: "session-1",
+        code: "WORKER_START_FAILED",
+        message: "ASR Worker 启动失败",
+        recoverable: true,
+      });
+    });
+    expect(screen.getByText("本地识别异常")).toBeInTheDocument();
+    expect(screen.getByText("ASR Worker 启动失败")).toBeInTheDocument();
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 
   it("renders the subtitle overlay", () => {

@@ -71,6 +71,10 @@ h1 {
   padding: 18px 20px;
 }
 
+.status-card-secondary {
+  margin-top: 0;
+}
+
 .status-card div {
   display: flex;
   align-items: center;
@@ -93,6 +97,16 @@ h1 {
 .status-dot.status-capturing {
   background: #2aa876;
   box-shadow: 0 0 0 5px rgba(42, 168, 118, 0.14);
+}
+
+.status-dot.status-ready {
+  background: #2aa876;
+  box-shadow: 0 0 0 5px rgba(42, 168, 118, 0.14);
+}
+
+.status-dot.status-starting {
+  background: #3568d4;
+  box-shadow: 0 0 0 5px rgba(53, 104, 212, 0.14);
 }
 
 .status-dot.status-error {
