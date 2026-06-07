@@ -188,7 +188,7 @@ describe("ASR main lifecycle helpers", () => {
   it("resolves launch defaults and environment overrides", () => {
     expect(resolveAsrLaunchOptions({})).toEqual({
       engine: "faster-whisper",
-      modelName: "small",
+      modelName: "tiny",
       language: "auto",
       device: "cpu",
       computeType: "int8",

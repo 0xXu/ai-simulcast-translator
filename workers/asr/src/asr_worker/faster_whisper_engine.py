@@ -21,9 +21,9 @@ class FasterWhisperConfig:
     language: str | None = None
     device: str = "cpu"
     compute_type: str = "int8"
-    min_window_ms: int = 1600
-    step_ms: int = 800
-    max_window_ms: int = 6000
+    min_window_ms: int = 1000
+    step_ms: int = 400
+    max_window_ms: int = 4000
 
 
 def _default_model_factory(
@@ -111,6 +111,9 @@ class FasterWhisperEngine:
         transcribe_options: dict[str, object] = {
             "condition_on_previous_text": False,
             "vad_filter": True,
+            "beam_size": 1,
+            "temperature": 0.0,
+            "best_of": 1,
         }
         if cfg.language is not None:
             transcribe_options["language"] = cfg.language
